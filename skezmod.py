@@ -1,15 +1,32 @@
 #!/usr/bin/env python3
-"""Apply the SkezMod v0.1 stable MANAGPRE "Stars Patch" (RC2+).
+"""
+Applies the SkezMod v0.1 MANAGPRE.exe patch set.
 
-Patch contract:
-- Keep the proven null-pointer guard at FUN_0066f1f0 (0x0066F208 crash path).
-- Add lookup-result fallback at FUN_004B5C20 tail hook (0x004B5C76):
-  - unresolved IDs map to stable non-null records
-  - team_id 0 -> "Unknown club"
-  - team_id 4705 -> "Stars"
-  - team_id 4706 -> "Free players"
-- Do not keep RC1 source-wrapper hooks at:
-  - 0x004B8C3D, 0x004B8C73, 0x004B8F09, 0x004B8F3F
+First patch-set resolves "Application cannot continue" when hovering
+Stars / free-players, e.g. Carlos Valderrama, Alexi Lalas...
+
+Patch behaviour:
+
+- Null check text-pointer dereference in `FUN_0066F1F0`
+  (faulting read at `0x0066F208`).
+
+- Tail hook `FUN_004B5C20` (`0x004B5C76`) when team can't be resolved, 
+   execution is redirected to a fallback handler located in code cave.
+
+- The fallback handler returns stable non-null records for unresolved IDs:
+    - `team_id 0`    → "Unknown club"
+    - `team_id 4705` → "Stars"
+    - `team_id 4706` → "Free players"
+
+- Apply some lightweight front-end branding: `"PM99 SkezMod 0.1" :-) thx`.
+
+Code cave layout:
+- `0x006E5092..0x006E51BF` — fallback handler, static fallbacks
+- `0x006E51C0`             — null-guard for `FUN_0066F1F0`
+
+Compatibility warning:
+- Tested on No-CD MANAGEPRE (My Abandonware)
+- Tested on Original ISO.
 """
 
 from __future__ import annotations
@@ -24,15 +41,34 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+ASCII_BRAND = (
+    "############################################################\n"
+    "#   _____ _  _______ ______ __  __  ____  _____            #\n"
+    "#  / ____| |/ / ____|___  /|  \\/  |/ __ \\|  __ \\           #\n"
+    "# | (___ | ' /| |__     / /| \\  / | |  | | |  | |          #\n"
+    "#  \\___ \\|  < |  __|   / / | |\\/| | |  | | |  | |          #\n"
+    "#  ____) | . \\| |____ / /_ | |  | | |__| | |__| |          #\n"
+    "# |_____/|_|\\_\\______/_____|_|  |_|\\____/|_____/           #\n"
+    "#                 Premier Manager 99 SkezMod 0.1           #\n"
+    "############################################################"
+)
 
-# Works when this repo is embedded under PM99RE/upstream/skezmod.
-WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_INPUT_EXE = WORKSPACE_ROOT / ".local" / "premier-manager-ninety-nine" / "MANAGPRE.EXE"
-DEFAULT_OUTPUT_EXE = Path("/tmp") / "MANAGPRE.stars_patch.EXE"
+
+# Production defaults:
+# - run from inside the PM99 install folder.
+DEFAULT_INPUT_EXE = Path("MANAGPRE.EXE")
+FALLBACK_INPUT_EXE = Path("managpre.exe")
+DEFAULT_OUTPUT_NAME = "MANAGPRE.skezmod.exe"
+DEFAULT_BACKUP_NAME = "MANAGPRE.original.exe"
 IMAGE_BASE = 0x400000
 
 TEAM_ID_STARS = 4705
 TEAM_ID_FREE_PLAYERS = 4706
+TITLE_ORIGINAL = b"PREMIER MANAGER 99\x00"
+TITLE_BRANDING_TEXT = b"PM99 SkezMod 0.1"
+TITLE_BRANDING = TITLE_BRANDING_TEXT + (b"\x00" * (len(TITLE_ORIGINAL) - len(TITLE_BRANDING_TEXT)))
+if len(TITLE_BRANDING) != len(TITLE_ORIGINAL):
+    raise RuntimeError("Branding bytes must preserve original string length")
 
 # .text tail slack used by previous patch iterations and kept stable.
 CAVE_BUNDLE_BASE_VA = 0x006E5092
@@ -316,7 +352,7 @@ def _build_bundle() -> tuple[bytes, dict[str, int], tuple[bytes, ...]]:
     return bundle, string_addrs, legacy_bundle_prefixes
 
 
-def _build_patch_plan(lookup_helper_va: int) -> list[DirectPatch]:
+def _build_patch_plan(lookup_helper_va: int, *, include_branding: bool) -> list[DirectPatch]:
     orig_search = bytes.fromhex("e8d51204008b4004")
     orig_transfer_a = bytes.fromhex("e8d8b3fbff8b4004")
     orig_transfer_b = bytes.fromhex("e887a6fbff8b4004")
@@ -345,7 +381,7 @@ def _build_patch_plan(lookup_helper_va: int) -> list[DirectPatch]:
     old_null_guard_trampoline = _build_trampoline(0x0066F1FB, 0x006E51C0, 15)
     old_hook_block = bytes.fromhex("e878ee2200e9efffffff9090")
 
-    return [
+    patches: list[DirectPatch] = [
         # Revert old experimental upstream list/profile trampolines.
         DirectPatch(
             name="restore_lookup_search_FUN_00474870",
@@ -443,22 +479,42 @@ def _build_patch_plan(lookup_helper_va: int) -> list[DirectPatch]:
         ),
     ]
 
+    if include_branding:
+        # Lightweight branding surface: title strings in .rdata.
+        patches.extend(
+            [
+                DirectPatch(
+                    name="brand_title_string_primary",
+                    site_va=0x006FC658,
+                    expected=TITLE_ORIGINAL,
+                    replacement=TITLE_BRANDING,
+                ),
+                DirectPatch(
+                    name="brand_title_string_secondary",
+                    site_va=0x006FC670,
+                    expected=TITLE_ORIGINAL,
+                    replacement=TITLE_BRANDING,
+                ),
+            ]
+        )
+
+    return patches
+
 
 def apply_patch(
     *,
     input_exe: Path,
-    output_exe: Path | None,
-    in_place: bool,
+    output_exe: Path,
     dry_run: bool,
     force: bool,
-    make_backup: bool,
+    no_branding: bool,
 ) -> dict[str, Any]:
     input_bytes = input_exe.read_bytes()
     patched = bytearray(input_bytes)
 
     bundle, string_addrs, legacy_bundle_prefixes = _build_bundle()
     lookup_helper_va = CAVE_BUNDLE_BASE_VA
-    patches = _build_patch_plan(lookup_helper_va=lookup_helper_va)
+    patches = _build_patch_plan(lookup_helper_va=lookup_helper_va, include_branding=not no_branding)
     rows: list[dict[str, Any]] = []
 
     # Write shared fallback bundle.
@@ -542,23 +598,15 @@ def apply_patch(
 
     output_bytes = bytes(patched)
 
-    target_out: Path
-    if in_place:
-        target_out = input_exe
-    else:
-        target_out = output_exe or DEFAULT_OUTPUT_EXE
+    target_out = output_exe
 
     backup_path: Path | None = None
     if not dry_run:
         target_out.parent.mkdir(parents=True, exist_ok=True)
-        if in_place and make_backup:
-            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = target_out.with_name(f"{target_out.name}.bak_stars_patch_{stamp}")
-            shutil.copy2(target_out, backup_path)
         target_out.write_bytes(output_bytes)
 
     return {
-        "patch_name": "stars_patch",
+        "patch_name": "skezmod",
         "input_exe": str(input_exe),
         "output_exe": str(target_out),
         "backup_exe": str(backup_path) if backup_path else None,
@@ -580,48 +628,133 @@ def apply_patch(
             "output": _sha256(output_bytes),
         },
         "notes": [
-            "SkezMod v0.1 stable patch: Stars Patch (RC2+).",
+            "SkezMod v0.1 patch set (includes Stars hover fix from RC2+).",
             "Keeps RC2 null-guard path for 0x0066F208 dereference.",
             "Adds FUN_004B5C20 miss fallback to safe non-null records (Unknown/Stars/Free players).",
             "RC1 source-wrapper hooks are explicitly removed/restored to original calls.",
+            (
+                "Title branding patches disabled via --no-branding; binary title strings left unchanged."
+                if no_branding
+                else "Applies title branding strings: 'PM99 SkezMod 0.1'."
+            ),
         ],
     }
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Apply the SkezMod v0.1 MANAGPRE Stars Patch (RC2+)")
-    parser.add_argument("--input", default=str(DEFAULT_INPUT_EXE), help="Path to source MANAGPRE.EXE")
-    parser.add_argument(
-        "--output",
-        default=str(DEFAULT_OUTPUT_EXE),
-        help="Output path (ignored with --in-place)",
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run from the root of your Premier Manager 99 install directory.\n"
+            "Default command: ./skezmod.py"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--in-place", action="store_true", help="Patch input file in place")
     parser.add_argument("--dry-run", action="store_true", help="Validate and report only")
-    parser.add_argument("--force", action="store_true", help="Ignore signature checks")
-    parser.add_argument("--no-backup", action="store_true", help="Disable auto-backup when using --in-place")
+    parser.add_argument(
+        "--no-branding",
+        action="store_true",
+        help="Do not apply EXE title branding patches; keep original title strings",
+    )
+    parser.add_argument("--force", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--json-output", help="Optional JSON report output path")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    input_exe = Path(args.input)
-    output_exe = None if args.in_place else Path(args.output)
-    report = apply_patch(
-        input_exe=input_exe,
-        output_exe=output_exe,
-        in_place=bool(args.in_place),
-        dry_run=bool(args.dry_run),
-        force=bool(args.force),
-        make_backup=not bool(args.no_backup),
-    )
-    text = json.dumps(report, indent=2)
+    input_exe = DEFAULT_INPUT_EXE
+    if not input_exe.exists() and FALLBACK_INPUT_EXE.exists():
+        input_exe = FALLBACK_INPUT_EXE
+    if not input_exe.exists():
+        print(ASCII_BRAND)
+        raise SystemExit(
+            "EXE not found: MANAGPRE.EXE or managpre.exe\n"
+            f"{input_exe.resolve()}\n"
+            "Run this from your Premier Manager Ninety Nine install directory."
+        )
+
+    staged_exe = input_exe.with_name(DEFAULT_OUTPUT_NAME)
+    stale_staged = staged_exe.exists()
+    total_steps = 2 if args.dry_run else (7 if stale_staged else 6)
+
+    def stage(step: int, message: str) -> None:
+        print(f"[{step}/{total_steps}] {message}")
+
+    print(ASCII_BRAND)
+    stage(1, f"Checking source binary: {input_exe}")
+
+    if args.dry_run:
+        report = apply_patch(
+            input_exe=input_exe,
+            output_exe=staged_exe,
+            dry_run=True,
+            force=bool(args.force),
+            no_branding=bool(args.no_branding),
+        )
+        stage(2, "Dry-run validation complete (no files modified).")
+    else:
+        apply_step = 3
+        if stale_staged:
+            stage(2, f"Removing stale staged file: {staged_exe.name}")
+            staged_exe.unlink()
+            stage(3, f"Creating staged copy: {staged_exe.name}")
+            apply_step = 4
+        else:
+            stage(2, f"Creating staged copy: {staged_exe.name}")
+
+        shutil.copy2(input_exe, staged_exe)
+
+        stage(apply_step, "Applying Stars Patch to staged copy")
+        report = apply_patch(
+            input_exe=staged_exe,
+            output_exe=staged_exe,
+            dry_run=False,
+            force=bool(args.force),
+            no_branding=bool(args.no_branding),
+        )
+
+        stage(apply_step + 1, "Verifying staged patch idempotence/signatures")
+        apply_patch(
+            input_exe=staged_exe,
+            output_exe=staged_exe,
+            dry_run=True,
+            force=bool(args.force),
+            no_branding=bool(args.no_branding),
+        )
+
+        stage(apply_step + 2, "Rotating original MANAGPRE.EXE to backup")
+        backup_path = input_exe.with_name(DEFAULT_BACKUP_NAME)
+        if backup_path.exists():
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = input_exe.with_name(f"MANAGPRE.original.{stamp}.exe")
+        input_exe.rename(backup_path)
+
+        stage(apply_step + 3, "Promoting staged patched binary to MANAGPRE.EXE")
+        try:
+            staged_exe.rename(input_exe)
+        except Exception as exc:
+            # Best-effort rollback to avoid leaving the install without MANAGPRE.EXE.
+            if backup_path.exists() and not input_exe.exists():
+                backup_path.rename(input_exe)
+            raise RuntimeError(f"Promotion failed; original restored: {exc}") from exc
+
+        report["input_exe"] = str(input_exe)
+        report["output_exe"] = str(input_exe)
+        report["backup_exe"] = str(backup_path)
+        report["notes"].append(
+            "Defensive staged flow completed: copy -> patch -> verify -> rotate -> promote."
+        )
+
+    json_text = json.dumps(report, indent=2)
     if args.json_output:
         out = Path(args.json_output)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(text + "\n", encoding="utf-8")
-    print(text)
+        out.write_text(json_text + "\n", encoding="utf-8")
+
+    if args.dry_run:
+        print("Stars Patch Dry-Run OK: no files modified.")
+    else:
+        print(f"Stars Patch Applied OK: {report.get('output_exe', '')}")
     return 0
 
 

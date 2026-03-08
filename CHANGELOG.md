@@ -1,0 +1,1 @@
+v0.1.0 (2026-03-08): First production SkezMod Stars Patch release with RC2+ hover-crash fix, defensive staged patch flow, optional `--no-branding`, lowercase `managpre.exe` fallback, and GPLv3 licensing.
