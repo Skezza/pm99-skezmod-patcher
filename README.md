@@ -2,8 +2,8 @@
 SkezMod Patcher is the worlds first (as far as I know) production patchset for x86 edition of Premier Manager Ninety Nine `MANAGPRE.EXE`.
 I'm looking to fix a few stability issues in the game and hopefully produce a fully functioning database editor in the future.
 
-## What v0.1 Ships
-`SkezMod Stars Patch` -
+### What SkezMod Patcher v0.1 Ships
+`Stars Patch` -
 Hovering over **Carlos Valderrama** or **Alexi Lalas** causes the game to crash. This happens because 10 hidden players exist in the database with **Team ID 4705**, which doesn't exist. Their team name appears as "Stars" in the player database as leftover data from an earlier PC Futbol database.
 
 When the game tries to access the missing team, it results in a **null pointer dereference**, triggering the "Application cannot continue" crash.
