@@ -201,6 +201,14 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Never commit proprietary PM99 binaries from local installs.
+*.EXE
+*.exe
+*.FDI
+*.fdi
+*.PKF
+*.pkf
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
