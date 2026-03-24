@@ -1,0 +1,16 @@
+image: node:20
+
+pages:
+  stage: deploy
+  script:
+    - cd web
+    - npm ci
+    - npm run build
+    - cd ..
+    - rm -rf public
+    - cp -r web/dist public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

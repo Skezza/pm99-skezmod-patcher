@@ -41,9 +41,6 @@
 .logo-cover {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(180deg, rgba(8, 14, 27, 0.38), rgba(8, 14, 27, 0.75)),
-    url('/keegan-cover.png');
   background-size: cover;
   background-position: center 37%;
   background-repeat: no-repeat;

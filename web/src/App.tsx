@@ -16,6 +16,7 @@ type ApplyResponse = Extract<WorkerResponse, { type: 'apply_result' }>;
 type CounterStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unconfigured';
 
 const COUNTER_API_BASE = import.meta.env.VITE_COUNTER_API_BASE?.trim().replace(/\/+$/, '') ?? '';
+const ASSET_BASE = import.meta.env.BASE_URL;
 
 function parseCount(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -340,9 +341,14 @@ function App() {
         <header className="hero">
           <p className="eyebrow">Unofficial Premier Manager Ninety Nine Production Patchset</p>
           <div className="logo-lockup" role="img" aria-label="Premier Manager Ninety Nine SkezMod">
-            <div className="logo-cover" />
+            <div
+              className="logo-cover"
+              style={{
+                backgroundImage: `linear-gradient(180deg, rgba(8, 14, 27, 0.38), rgba(8, 14, 27, 0.75)), url(${ASSET_BASE}keegan-cover.png)`,
+              }}
+            />
             <div className="logo-copy">
-              <img className="logo-tag-image" src="/skezmod-logo-cut.png" alt="SkezMod logo" />
+              <img className="logo-tag-image" src={`${ASSET_BASE}skezmod-logo-cut.png`} alt="SkezMod logo" />
             </div>
           </div>
           <p className="hero-sub">The worlds first self-service PM99 patch application toolkit.</p>
