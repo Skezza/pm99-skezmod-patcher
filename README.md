@@ -61,3 +61,5 @@ npm run dev
 ```
 
 The web app performs signature preflight checks in-browser and downloads `MANAGPRE.skezmod.exe` after a successful patch.
+
+
