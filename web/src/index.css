@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Rajdhani:wght@600;700&display=swap');
+
+:root {
+  --ink-900: #122138;
+  --ink-800: #1f2e4d;
+  --ink-700: #2f456f;
+  --ink-100: #eef4ff;
+  --ink-300: #b8c6df;
+  --gold-500: #dca84a;
+  --gold-400: #f4c766;
+  --line: rgba(255, 255, 255, 0.14);
+  --danger: #ffd4d0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: 'Manrope', 'Segoe UI', Tahoma, sans-serif;
+  color: var(--ink-100);
+  background:
+    radial-gradient(1400px 800px at 20% -20%, #2f5689 0%, transparent 65%),
+    radial-gradient(1200px 640px at 110% 120%, #6d4f2d 0%, transparent 60%),
+    linear-gradient(180deg, #203355 0%, #0f1b2f 60%, #091224 100%);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(transparent 95%, rgba(255, 255, 255, 0.03) 100%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+  opacity: 0.7;
+}
+
+a {
+  color: var(--gold-400);
+}
+
+button,
+input {
+  font: inherit;
+}

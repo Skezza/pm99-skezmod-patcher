@@ -24,14 +24,13 @@ from pathlib import Path
 from typing import Any
 import sys
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.xor import decode_entry, encode_entry
 
 SEPARATOR = bytes([0xDD, 0x63, 0x60])
-REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JUG = REPO_ROOT / ".local" / "premier-manager-ninety-nine" / "DBDAT" / "JUG98030.FDI"
 
 
