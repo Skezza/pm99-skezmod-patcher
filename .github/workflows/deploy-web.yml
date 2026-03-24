@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - valderrama-fixforward-wrapper-migration
     paths:
       - 'web/**'
       - '.github/workflows/deploy-web.yml'
