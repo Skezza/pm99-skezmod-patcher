@@ -42,7 +42,7 @@
   position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center 20%;
+  background-position: center 26%;
   background-repeat: no-repeat;
   transform: scale(1);
 }
@@ -222,7 +222,7 @@ button.primary {
   }
 
   .logo-cover {
-    background-position: center 34%;
+    background-position: center 37%;
   }
 
   .logo-copy {
