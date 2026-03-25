@@ -1,6 +1,7 @@
 import {
   type ChangeEvent,
   type DragEvent,
+  type KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -255,6 +256,10 @@ function App() {
     event.preventDefault();
     setDragActive(false);
 
+    if (isBusy) {
+      return;
+    }
+
     const file = event.dataTransfer.files?.[0];
     if (!file) {
       return;
@@ -272,6 +277,25 @@ function App() {
     event.preventDefault();
     setDragActive(false);
   };
+
+  const openFilePicker = useCallback(() => {
+    if (isBusy) {
+      return;
+    }
+
+    fileInputRef.current?.click();
+  }, [isBusy]);
+
+  const onDropZoneKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (isBusy) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openFilePicker();
+    }
+  }, [isBusy, openFilePicker]);
 
   const applyPatch = async () => {
     if (!loadedFile || !loadedBytes || !compatibility?.ok) {
@@ -360,20 +384,17 @@ function App() {
         <section className="panel">
           <h2>1. Load Binary</h2>
           <div
-            className={`drop-zone ${dragActive ? 'is-active' : ''}`}
+            className={`drop-zone ${dragActive ? 'is-active' : ''} ${loadedFile ? 'has-file' : ''} ${isBusy ? 'is-busy' : ''}`}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
+            onClick={openFilePicker}
+            onKeyDown={onDropZoneKeyDown}
+            role="button"
+            tabIndex={isBusy ? -1 : 0}
+            aria-disabled={isBusy}
+            aria-label="Drop MANAGPRE.EXE here or click to choose a file"
           >
-            <p>Drop MANAGPRE.EXE here</p>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isBusy}
-            >
-              Browse
-            </button>
             <input
               ref={fileInputRef}
               type="file"
@@ -381,22 +402,31 @@ function App() {
               hidden
               onChange={onFileInputChange}
             />
+            {loadedFile ? (
+              <div className="drop-zone-content loaded">
+                <img className="drop-zone-icon" src={`${ASSET_BASE}pm99-main-logo-cut.png`} alt="" aria-hidden="true" />
+                <div className="drop-zone-copy">
+                  <p className="drop-zone-title">File loaded</p>
+                  <p className="drop-zone-fileline">
+                    {loadedFile.name} ({byteSizeLabel(loadedFile.size)})
+                  </p>
+                  {compatibility ? (
+                    <p className="drop-zone-meta">
+                      Detected: {versionLabel}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="drop-zone-content empty">
+                <img className="drop-zone-icon" src={`${ASSET_BASE}pm99-main-logo-cut.png`} alt="" aria-hidden="true" />
+                <div className="drop-zone-copy">
+                  <p className="drop-zone-title">Drop MANAGPRE.EXE here</p>
+                  <p className="drop-zone-meta">or click to choose a file</p>
+                </div>
+              </div>
+            )}
           </div>
-
-          {loadedFile || compatibility ? (
-            <div className="status-grid">
-              {loadedFile ? (
-                <p>
-                  <strong>File:</strong> {loadedFile.name} ({byteSizeLabel(loadedFile.size)})
-                </p>
-              ) : null}
-              {compatibility ? (
-                <p>
-                  <strong>Detected:</strong> {versionLabel}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
         </section>
 
         <section className="panel">
