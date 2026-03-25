@@ -37,3 +37,4 @@ npm run build
 ## Branding Asset
 
 - For the hero logo background, place your cover art at `web/public/keegan-cover.png`.
+
