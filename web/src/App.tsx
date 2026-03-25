@@ -344,7 +344,7 @@ function App() {
             <div
               className="logo-cover"
               style={{
-                backgroundImage: `linear-gradient(180deg, rgba(8, 14, 27, 0.38), rgba(8, 14, 27, 0.75)), url(${ASSET_BASE}keegan-cover.png)`,
+                backgroundImage: `linear-gradient(180deg, rgba(8, 14, 27, 0.38), rgba(8, 14, 27, 0.75)), url(${ASSET_BASE}keegan-cover-cropped.png)`,
               }}
             />
             <div className="logo-copy">
