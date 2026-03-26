@@ -169,6 +169,10 @@
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
 }
 
+.drop-zone-iconImage--empty {
+  padding: 0.18rem;
+}
+
 .drop-zone-iconFallback {
   display: grid;
   place-items: center;

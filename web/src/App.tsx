@@ -20,6 +20,7 @@ type CounterStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unconfigured';
 const COUNTER_API_BASE = import.meta.env.VITE_COUNTER_API_BASE?.trim().replace(/\/+$/, '') ?? '';
 const ASSET_BASE = import.meta.env.BASE_URL;
 const REPO_URL = 'https://github.com/Skezza/pm99-skezmod-patcher';
+const EMPTY_ICON_URL = `${ASSET_BASE}file-upload-icon.svg`;
 
 function parseCount(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -360,6 +361,10 @@ function App() {
     return compatibility?.variantLabel ?? '';
   }, [compatibility]);
 
+  const visibleReasons = useMemo(() => {
+    return compatibility?.reasons.filter((reason) => reason !== 'Signature checks passed.') ?? [];
+  }, [compatibility]);
+
   const counterLabel = useMemo(() => {
     if (patchCount !== null) {
       return patchCount.toLocaleString();
@@ -436,7 +441,7 @@ function App() {
             ) : (
               <div className="drop-zone-content empty">
                 <div className="drop-zone-iconFrame" aria-hidden="true">
-                  <span className="drop-zone-iconFallback">?</span>
+                  <img className="drop-zone-iconImage drop-zone-iconImage--empty" src={EMPTY_ICON_URL} alt="" aria-hidden="true" />
                 </div>
                 <div className="drop-zone-copy">
                   <p className="drop-zone-title">Drop MANAGPRE.EXE here</p>
@@ -473,11 +478,10 @@ function App() {
         </section>
 
         <section className="panel diagnostics">
-          <h2>Status</h2>
           {statusText ? <p className="status-line">{statusText}</p> : null}
-          {compatibility?.reasons.length ? (
+          {visibleReasons.length ? (
             <ul>
-              {compatibility.reasons.map((reason) => (
+              {visibleReasons.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}
             </ul>
