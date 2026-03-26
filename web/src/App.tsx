@@ -67,7 +67,8 @@ function App() {
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [statusText, setStatusText] = useState('');
   const [errorText, setErrorText] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [patchCount, setPatchCount] = useState<number | null>(null);
   const [counterStatus, setCounterStatus] = useState<CounterStatus>('idle');
@@ -203,9 +204,8 @@ function App() {
 
   const runPreflight = useCallback(
     async (fileName: string, bytes: ArrayBuffer) => {
-      setIsBusy(true);
+      setIsInspecting(true);
       setErrorText(null);
-      setStatusText('Checking compatibility...');
 
       try {
         const response = (await callWorker({
@@ -215,20 +215,14 @@ function App() {
         })) as InspectResponse;
 
         setCompatibility(response.compatibility);
-        setStatusText(
-          response.compatibility.ok
-            ? response.compatibility.alreadyPatched
-              ? 'This file already includes SkezMod Patch 0.1.'
-              : 'Ready to apply SkezMod Patch 0.1.'
-            : 'This is not a supported MANAGPRE.EXE build.',
-        );
+        setStatusText(response.compatibility.ok ? '' : 'This is not a supported MANAGPRE.EXE build.');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Compatibility check failed unexpectedly';
         setCompatibility(null);
         setErrorText(message);
         setStatusText('Compatibility check failed.');
       } finally {
-        setIsBusy(false);
+        setIsInspecting(false);
       }
     },
     [callWorker],
@@ -273,7 +267,7 @@ function App() {
     event.preventDefault();
     setDragActive(false);
 
-    if (isBusy) {
+    if (isInspecting || isApplying) {
       return;
     }
 
@@ -296,15 +290,15 @@ function App() {
   };
 
   const openFilePicker = useCallback(() => {
-    if (isBusy) {
+    if (isInspecting || isApplying) {
       return;
     }
 
     fileInputRef.current?.click();
-  }, [isBusy]);
+  }, [isApplying, isInspecting]);
 
   const onDropZoneKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (isBusy) {
+    if (isInspecting || isApplying) {
       return;
     }
 
@@ -312,16 +306,15 @@ function App() {
       event.preventDefault();
       openFilePicker();
     }
-  }, [isBusy, openFilePicker]);
+  }, [isApplying, isInspecting, openFilePicker]);
 
   const applyPatch = async () => {
     if (!loadedFile || !loadedBytes || !compatibility?.ok) {
       return;
     }
 
-    setIsBusy(true);
+    setIsApplying(true);
     setErrorText(null);
-    setStatusText('Applying SkezMod Patch 0.1...');
 
     try {
       const response = (await callWorker({
@@ -342,8 +335,6 @@ function App() {
       setReportUrl(URL.createObjectURL(reportBlob));
 
       setApplyReport(response.report);
-      setStatusText('Done. Your patched EXE should download immediately.');
-
       void incrementPatchCount().catch(() => {
         setCounterStatus('error');
       });
@@ -352,7 +343,7 @@ function App() {
       setErrorText(message);
       setStatusText('Patch failed.');
     } finally {
-      setIsBusy(false);
+      setIsApplying(false);
     }
   };
 
@@ -381,7 +372,7 @@ function App() {
   }, [counterStatus, patchCount]);
 
   const applyButtonLabel = useMemo(() => {
-    if (isBusy) {
+    if (isApplying) {
       return 'Processing...';
     }
 
@@ -390,7 +381,9 @@ function App() {
     }
 
     return 'Apply';
-  }, [applyReport, isBusy]);
+  }, [applyReport, isApplying]);
+
+  const isLocked = isInspecting || isApplying;
 
   return (
     <main className="app-shell">
@@ -416,16 +409,16 @@ function App() {
 
         <section className="panel">
           <h2>Load Binary</h2>
-          <div
-            className={`drop-zone ${dragActive ? 'is-active' : ''} ${loadedFile ? 'has-file' : ''} ${isBusy ? 'is-busy' : ''}`}
+            <div
+            className={`drop-zone ${dragActive ? 'is-active' : ''} ${loadedFile ? 'has-file' : ''} ${isLocked ? 'is-busy' : ''}`}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onClick={openFilePicker}
             onKeyDown={onDropZoneKeyDown}
             role="button"
-            tabIndex={isBusy ? -1 : 0}
-            aria-disabled={isBusy}
+            tabIndex={isLocked ? -1 : 0}
+            aria-disabled={isLocked}
             aria-label="Drop MANAGPRE.EXE here or click to choose a file"
           >
             <input
@@ -473,7 +466,7 @@ function App() {
             type="button"
             className="primary"
             onClick={applyPatch}
-            disabled={isBusy || !compatibility?.ok || applyReport !== null}
+            disabled={isLocked || !compatibility?.ok || applyReport !== null}
           >
             {applyButtonLabel}
           </button>
@@ -495,7 +488,6 @@ function App() {
             </ul>
           ) : null}
           {errorText ? <p className="error-line">{errorText}</p> : null}
-          {applyReport ? <p>Applied patch operations: {applyReport.patchCount}</p> : null}
         </section>
 
         <footer className="app-footer">
