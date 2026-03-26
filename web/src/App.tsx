@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import './App.css';
-import { byteSizeLabel, type CompatibilityResult, type PatchReport } from './lib/patchEngine';
+import { type CompatibilityResult, type PatchReport } from './lib/patchEngine';
 import type { WorkerRequest, WorkerResponse } from './lib/workerProtocol';
 import { extractExeIconUrl } from './lib/exeIcon';
 
@@ -428,15 +428,8 @@ function App() {
                   )}
                 </div>
                 <div className="drop-zone-copy">
-                  <p className="drop-zone-title">File loaded</p>
-                  <p className="drop-zone-fileline">
-                    {loadedFile.name} ({byteSizeLabel(loadedFile.size)})
-                  </p>
-                  {compatibility ? (
-                    <p className="drop-zone-meta">
-                      Detected: {versionLabel}
-                    </p>
-                  ) : null}
+                  <p className="drop-zone-fileline">{loadedFile.name}</p>
+                  {compatibility ? <p className="drop-zone-meta">{versionLabel}</p> : null}
                 </div>
               </div>
             ) : (

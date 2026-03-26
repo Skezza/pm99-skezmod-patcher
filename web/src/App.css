@@ -223,6 +223,11 @@
 
 .drop-zone-content.loaded {
   width: 100%;
+  justify-content: center;
+}
+
+.drop-zone-content.loaded .drop-zone-copy {
+  text-align: center;
 }
 
 .drop-zone-content.empty {
@@ -319,6 +324,10 @@ button.primary {
 
   .drop-zone-content {
     align-items: flex-start;
+  }
+
+  .drop-zone-content.loaded {
+    justify-content: center;
   }
 
   .drop-zone-iconFrame {
