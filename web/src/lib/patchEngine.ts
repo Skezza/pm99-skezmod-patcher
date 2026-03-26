@@ -620,10 +620,9 @@ export async function applySkezmodPatch(
     },
     notes: [
       'SkezMod Patch 0.1.',
-      'Adds null protection at FUN_0066F1F0 (0x0066F1FB) via code cave 0x006E51C0.',
-      'Adds fallback lookup at FUN_004B5C20 (0x004B5C76) via code cave 0x006E5092.',
+      'Add null protection at FUN_0066F1F0 (0x0066F1FB) via code cave 0x006E51C0.',
+      'Add fallback lookup at FUN_004B5C20 (0x004B5C76) via code cave 0x006E5092.',
       'Applies title branding strings: PM99 SkezMod 0.1.',
-      'Built for first-rollout MANAGPRE.EXE patching.',
     ],
   };
 

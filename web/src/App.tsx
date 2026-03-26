@@ -403,7 +403,7 @@ function App() {
         </header>
 
         <section className="panel">
-          <h2>1. Load Binary</h2>
+          <h2>Load Binary</h2>
           <div
             className={`drop-zone ${dragActive ? 'is-active' : ''} ${loadedFile ? 'has-file' : ''} ${isBusy ? 'is-busy' : ''}`}
             onDrop={onDrop}
@@ -449,7 +449,7 @@ function App() {
         </section>
 
         <section className="panel">
-          <h2>2. Apply SkezMod Patch 0.1</h2>
+          <h2>Apply SkezMod Patch 0.1</h2>
           <div className="option-list" role="group" aria-label="Patch options">
             <label>
               <input type="checkbox" checked readOnly disabled />

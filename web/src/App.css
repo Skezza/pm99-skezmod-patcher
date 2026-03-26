@@ -42,7 +42,7 @@
   position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center 80%;
+  background-position: center 76%;
   background-repeat: no-repeat;
   transform: scale(1);
 }
@@ -228,16 +228,16 @@
 .drop-zone-content.loaded {
   width: 100%;
   justify-content: center;
-  animation: drop-zone-enter 180ms ease-out both;
+  animation: drop-zone-enter 280ms ease-out both;
 }
 
 .drop-zone-content.loaded .drop-zone-copy {
   text-align: center;
-  animation: drop-zone-enter-copy 220ms ease-out both 35ms;
+  animation: drop-zone-enter-copy 320ms ease-out both 70ms;
 }
 
 .drop-zone-content.loaded .drop-zone-iconFrame {
-  animation: drop-zone-enter-icon 220ms ease-out both;
+  animation: drop-zone-enter-icon 300ms ease-out both;
 }
 
 .drop-zone-content.empty {
@@ -379,7 +379,7 @@ button.primary {
   }
 
   .logo-cover {
-    background-position: center 37%;
+    background-position: center 33%;
   }
 
   .logo-copy {
