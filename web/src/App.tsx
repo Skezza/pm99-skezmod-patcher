@@ -11,6 +11,7 @@ import {
 import './App.css';
 import { byteSizeLabel, type CompatibilityResult, type PatchReport } from './lib/patchEngine';
 import type { WorkerRequest, WorkerResponse } from './lib/workerProtocol';
+import { extractExeIconUrl } from './lib/exeIcon';
 
 type InspectResponse = Extract<WorkerResponse, { type: 'inspect_result' }>;
 type ApplyResponse = Extract<WorkerResponse, { type: 'apply_result' }>;
@@ -59,6 +60,7 @@ function App() {
 
   const [loadedFile, setLoadedFile] = useState<File | null>(null);
   const [loadedBytes, setLoadedBytes] = useState<ArrayBuffer | null>(null);
+  const [loadedIconUrl, setLoadedIconUrl] = useState<string | null>(null);
   const [compatibility, setCompatibility] = useState<CompatibilityResult | null>(null);
   const [applyReport, setApplyReport] = useState<PatchReport | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
@@ -165,6 +167,14 @@ function App() {
   }, [reportUrl]);
 
   useEffect(() => {
+    return () => {
+      if (loadedIconUrl) {
+        URL.revokeObjectURL(loadedIconUrl);
+      }
+    };
+  }, [loadedIconUrl]);
+
+  useEffect(() => {
     if (!COUNTER_API_BASE) {
       setCounterStatus('unconfigured');
       return;
@@ -229,6 +239,7 @@ function App() {
       setApplyReport(null);
       setCompatibility(null);
       setErrorText(null);
+      setLoadedIconUrl(null);
 
       if (reportUrl) {
         URL.revokeObjectURL(reportUrl);
@@ -237,6 +248,11 @@ function App() {
 
       const bytes = await file.arrayBuffer();
       setLoadedBytes(bytes);
+      try {
+        setLoadedIconUrl(extractExeIconUrl(bytes));
+      } catch {
+        setLoadedIconUrl(null);
+      }
       await runPreflight(file.name, bytes);
     },
     [reportUrl, runPreflight],
@@ -404,7 +420,13 @@ function App() {
             />
             {loadedFile ? (
               <div className="drop-zone-content loaded">
-                <img className="drop-zone-icon" src={`${ASSET_BASE}pm99-main-logo-cut.png`} alt="" aria-hidden="true" />
+                <div className="drop-zone-iconFrame" aria-hidden="true">
+                  {loadedIconUrl ? (
+                    <img className="drop-zone-iconImage" src={loadedIconUrl} alt="" aria-hidden="true" />
+                  ) : (
+                    <span className="drop-zone-iconFallback">?</span>
+                  )}
+                </div>
                 <div className="drop-zone-copy">
                   <p className="drop-zone-title">File loaded</p>
                   <p className="drop-zone-fileline">
@@ -419,7 +441,9 @@ function App() {
               </div>
             ) : (
               <div className="drop-zone-content empty">
-                <img className="drop-zone-icon" src={`${ASSET_BASE}pm99-main-logo-cut.png`} alt="" aria-hidden="true" />
+                <div className="drop-zone-iconFrame" aria-hidden="true">
+                  <span className="drop-zone-iconFallback">?</span>
+                </div>
                 <div className="drop-zone-copy">
                   <p className="drop-zone-title">Drop MANAGPRE.EXE here</p>
                   <p className="drop-zone-meta">or click to choose a file</p>
