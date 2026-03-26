@@ -380,6 +380,18 @@ function App() {
     return 'Loading...';
   }, [counterStatus, patchCount]);
 
+  const applyButtonLabel = useMemo(() => {
+    if (isBusy) {
+      return 'Processing...';
+    }
+
+    if (applyReport) {
+      return 'Done';
+    }
+
+    return 'Apply';
+  }, [applyReport, isBusy]);
+
   return (
     <main className="app-shell">
       <section className="app-card">
@@ -461,9 +473,9 @@ function App() {
             type="button"
             className="primary"
             onClick={applyPatch}
-            disabled={isBusy || !compatibility?.ok}
+            disabled={isBusy || !compatibility?.ok || applyReport !== null}
           >
-            {isBusy ? 'Processing...' : 'Apply'}
+            {applyButtonLabel}
           </button>
 
           {reportUrl ? (
