@@ -228,10 +228,16 @@
 .drop-zone-content.loaded {
   width: 100%;
   justify-content: center;
+  animation: drop-zone-enter 180ms ease-out both;
 }
 
 .drop-zone-content.loaded .drop-zone-copy {
   text-align: center;
+  animation: drop-zone-enter-copy 220ms ease-out both 35ms;
+}
+
+.drop-zone-content.loaded .drop-zone-iconFrame {
+  animation: drop-zone-enter-icon 220ms ease-out both;
 }
 
 .drop-zone-content.empty {
@@ -323,6 +329,47 @@ button.primary {
 .app-footer a:hover,
 .app-footer a:focus-visible {
   text-decoration: underline;
+}
+
+@keyframes drop-zone-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drop-zone-enter-icon {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes drop-zone-enter-copy {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drop-zone-content.loaded,
+  .drop-zone-content.loaded .drop-zone-copy,
+  .drop-zone-content.loaded .drop-zone-iconFrame {
+    animation: none;
+  }
 }
 
 @media (max-width: 640px) {
