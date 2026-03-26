@@ -19,6 +19,7 @@ type CounterStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unconfigured';
 
 const COUNTER_API_BASE = import.meta.env.VITE_COUNTER_API_BASE?.trim().replace(/\/+$/, '') ?? '';
 const ASSET_BASE = import.meta.env.BASE_URL;
+const REPO_URL = 'https://github.com/Skezza/pm99-skezmod-patcher';
 
 function parseCount(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -484,6 +485,12 @@ function App() {
           {errorText ? <p className="error-line">{errorText}</p> : null}
           {applyReport ? <p>Applied patch operations: {applyReport.patchCount}</p> : null}
         </section>
+
+        <footer className="app-footer">
+          <a href={REPO_URL} target="_blank" rel="noreferrer">
+            Source on GitHub
+          </a>
+        </footer>
       </section>
     </main>
   );

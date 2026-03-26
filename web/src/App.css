@@ -303,6 +303,24 @@ button.primary {
   color: #dce8ff;
 }
 
+.app-footer {
+  padding: 0.85rem 1.4rem 1.15rem;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.015);
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+.app-footer a {
+  color: #dce8ff;
+  text-decoration: none;
+}
+
+.app-footer a:hover,
+.app-footer a:focus-visible {
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
   .logo-lockup {
     height: clamp(190px, 30vw, 340px);
@@ -320,6 +338,11 @@ button.primary {
   .logo-tag-image {
     top: 0;
     width: clamp(170px, 24vw, 250px);
+  }
+
+  .app-footer {
+    padding-left: 0.95rem;
+    padding-right: 0.95rem;
   }
 
   .drop-zone-content {
