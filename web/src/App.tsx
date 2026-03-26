@@ -20,7 +20,6 @@ type CounterStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unconfigured';
 const COUNTER_API_BASE = import.meta.env.VITE_COUNTER_API_BASE?.trim().replace(/\/+$/, '') ?? '';
 const ASSET_BASE = import.meta.env.BASE_URL;
 const REPO_URL = 'https://github.com/Skezza/pm99-skezmod-patcher';
-const EMPTY_ICON_URL = `${ASSET_BASE}file-upload-icon.svg`;
 
 function parseCount(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -440,9 +439,6 @@ function App() {
               </div>
             ) : (
               <div className="drop-zone-content empty">
-                <div className="drop-zone-iconFrame" aria-hidden="true">
-                  <img className="drop-zone-iconImage drop-zone-iconImage--empty" src={EMPTY_ICON_URL} alt="" aria-hidden="true" />
-                </div>
                 <div className="drop-zone-copy">
                   <p className="drop-zone-title">Drop MANAGPRE.EXE here</p>
                   <p className="drop-zone-meta">or click to choose a file</p>
