@@ -48,3 +48,18 @@ Skip branding, just apply patch?:
 
 ## Release Notes
 See: `docs/releases/v0.1.0.md`
+
+## Web Self-Service (Client-Side)
+The repository now includes a browser patcher in `web/` (React + TypeScript + Web Worker).
+
+Run locally:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+The web app performs signature preflight checks in-browser and downloads `MANAGPRE.skezmod.exe` after a successful patch.
+
+
