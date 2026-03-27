@@ -494,6 +494,10 @@ function App() {
           <a href={REPO_URL} target="_blank" rel="noreferrer">
             Source on GitHub
           </a>
+          <span aria-hidden="true" className="app-footer-separator">
+            ·
+          </span>
+          <span>Or patch locally with `skezmod.py`.</span>
         </footer>
       </section>
     </main>

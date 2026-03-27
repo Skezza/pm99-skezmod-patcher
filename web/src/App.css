@@ -319,6 +319,7 @@ button.primary {
   background: rgba(255, 255, 255, 0.015);
   text-align: center;
   font-size: 0.92rem;
+  color: #cfdcff;
 }
 
 .app-footer a {
@@ -329,6 +330,12 @@ button.primary {
 .app-footer a:hover,
 .app-footer a:focus-visible {
   text-decoration: underline;
+}
+
+.app-footer-separator {
+  display: inline-block;
+  margin: 0 0.45rem;
+  color: #8ba0c6;
 }
 
 @keyframes drop-zone-enter {
