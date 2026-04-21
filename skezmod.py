@@ -64,6 +64,7 @@ IMAGE_BASE = 0x400000
 
 TEAM_ID_STARS = 4705
 TEAM_ID_FREE_PLAYERS = 4706
+VALDERRAMA_PLAYER_RECORD_ID = 20864  # 0x5180 in indexed JUG98030.FDI.
 TITLE_ORIGINAL = b"PREMIER MANAGER 99\x00"
 TITLE_BRANDING_TEXT = b"PM99 SkezMod 0.1"
 TITLE_BRANDING = TITLE_BRANDING_TEXT + (b"\x00" * (len(TITLE_ORIGINAL) - len(TITLE_BRANDING_TEXT)))
@@ -82,6 +83,14 @@ CAVE_UNKNOWN_STRING_VA = 0x006E51AD
 
 # RC2-proven null-guard cave location.
 CAVE_NULL_GUARD_VA = 0x006E51C0
+
+# Formatter-local fallback for the observed "You have signed Valderrama of ." output.
+CAVE_FORMATTER_S3_STAGE0_VA = 0x006E4251
+CAVE_FORMATTER_S3_STAGE0_SIZE = 15
+CAVE_FORMATTER_S3_STAGE1_VA = 0x006E42D1
+CAVE_FORMATTER_S3_STAGE1_SIZE = 15
+CAVE_FORMATTER_S3_STAGE2_VA = 0x006E42F5
+CAVE_FORMATTER_S3_STAGE2_SIZE = 11
 
 
 @dataclass(frozen=True)
@@ -285,6 +294,37 @@ def _build_lookup_result_fallback_helper(
     return bytes(out)
 
 
+def _build_formatter_s3_valderrama_stages(
+    *,
+    stage0_va: int,
+    stage1_va: int,
+    stage2_va: int,
+    stars_va: int,
+    original_push_va: int,
+    original_skip_va: int,
+) -> tuple[bytes, bytes, bytes]:
+    """For {S3}, backfill Stars only when the event player id is Valderrama."""
+    stage0 = bytearray()
+    stage0 += b"\x8B\x45\x18"  # mov eax,[ebp+0x18] (original {S3})
+    stage0 += b"\x85\xC0"  # test eax,eax
+    jz_stage1_pos = len(stage0)
+    stage0 += b"\x74\x00"  # null {S3}: inspect the player id
+    stage0 += b"\xE9" + _rel32(stage0_va + len(stage0), 5, original_push_va)
+    stage0[jz_stage1_pos + 1] = (stage1_va - (stage0_va + jz_stage1_pos + 2)) & 0xFF
+
+    stage1 = bytearray()
+    stage1 += b"\x81\x7D\x08" + struct.pack("<I", VALDERRAMA_PLAYER_RECORD_ID)
+    je_stage2_pos = len(stage1)
+    stage1 += b"\x74\x00"
+    stage1 += b"\xE9" + _rel32(stage1_va + len(stage1), 5, original_skip_va)
+    stage1[je_stage2_pos + 1] = (stage2_va - (stage1_va + je_stage2_pos + 2)) & 0xFF
+
+    stage2 = bytearray()
+    stage2 += b"\xB8" + struct.pack("<I", stars_va)  # mov eax,Stars
+    stage2 += b"\xE9" + _rel32(stage2_va + len(stage2), 5, original_push_va)
+    return bytes(stage0), bytes(stage1), bytes(stage2)
+
+
 def _build_fake_team_record(*, name_ptr_va: int, team_id: int) -> bytes:
     rec = bytearray(0x14)
     struct.pack_into("<I", rec, 0x04, int(name_ptr_va))
@@ -477,6 +517,12 @@ def _build_patch_plan(lookup_helper_va: int, *, include_branding: bool) -> list[
             replacement=_build_trampoline(0x0066F1FB, CAVE_NULL_GUARD_VA, 15),
             alternates=(old_null_guard_trampoline,),
         ),
+        DirectPatch(
+            name="formatter_s3_valderrama_stars_FUN_00499D00",
+            site_va=0x00499DA1,
+            expected=bytes.fromhex("8b451885c00f84c4000000"),
+            replacement=_build_trampoline(0x00499DA1, CAVE_FORMATTER_S3_STAGE0_VA, 11),
+        ),
     ]
 
     if include_branding:
@@ -596,6 +642,41 @@ def apply_patch(
         }
     )
 
+    formatter_s3_stage0, formatter_s3_stage1, formatter_s3_stage2 = _build_formatter_s3_valderrama_stages(
+        stage0_va=CAVE_FORMATTER_S3_STAGE0_VA,
+        stage1_va=CAVE_FORMATTER_S3_STAGE1_VA,
+        stage2_va=CAVE_FORMATTER_S3_STAGE2_VA,
+        stars_va=string_addrs["stars"],
+        original_push_va=0x00499E62,
+        original_skip_va=0x00499E70,
+    )
+    formatter_s3_specs = (
+        ("write_formatter_s3_stage0_cave", CAVE_FORMATTER_S3_STAGE0_VA, CAVE_FORMATTER_S3_STAGE0_SIZE, formatter_s3_stage0),
+        ("write_formatter_s3_stage1_cave", CAVE_FORMATTER_S3_STAGE1_VA, CAVE_FORMATTER_S3_STAGE1_SIZE, formatter_s3_stage1),
+        ("write_formatter_s3_stage2_cave", CAVE_FORMATTER_S3_STAGE2_VA, CAVE_FORMATTER_S3_STAGE2_SIZE, formatter_s3_stage2),
+    )
+    for name, cave_va, cave_size, cave_code in formatter_s3_specs:
+        if len(cave_code) > cave_size:
+            raise RuntimeError(f"{name} overflow ({len(cave_code)} > {cave_size})")
+        cave_blob = cave_code + (b"\xCC" * (cave_size - len(cave_code)))
+        cave_off = _va_to_file_offset(input_bytes, cave_va)
+        current_cave = input_bytes[cave_off: cave_off + cave_size]
+        if (not force) and current_cave not in {b"\xCC" * cave_size, cave_blob}:
+            raise RuntimeError(
+                f"{name} cave bytes are not recognized. Use --force only after manual verification."
+            )
+        patched[cave_off: cave_off + cave_size] = cave_blob
+        rows.append(
+            {
+                "name": name,
+                "site_va": f"0x{cave_va:08X}",
+                "site_file_offset": f"0x{cave_off:08X}",
+                "site_before": current_cave.hex(),
+                "site_after": cave_blob.hex(),
+                "bytes_written": cave_size,
+            }
+        )
+
     output_bytes = bytes(patched)
 
     target_out = output_exe
@@ -618,6 +699,9 @@ def apply_patch(
             "bundle_size": CAVE_BUNDLE_SIZE,
             "lookup_helper": f"0x{lookup_helper_va:08X}",
             "null_guard": f"0x{CAVE_NULL_GUARD_VA:08X}",
+            "formatter_s3_stage0": f"0x{CAVE_FORMATTER_S3_STAGE0_VA:08X}",
+            "formatter_s3_stage1": f"0x{CAVE_FORMATTER_S3_STAGE1_VA:08X}",
+            "formatter_s3_stage2": f"0x{CAVE_FORMATTER_S3_STAGE2_VA:08X}",
             "empty": f"0x{string_addrs['empty']:08X}",
             "stars": f"0x{string_addrs['stars']:08X}",
             "free": f"0x{string_addrs['free']:08X}",
@@ -631,6 +715,7 @@ def apply_patch(
             "SkezMod v0.1 patch set (includes Stars hover fix from RC2+).",
             "Keeps RC2 null-guard path for 0x0066F208 dereference.",
             "Adds FUN_004B5C20 miss fallback to safe non-null records (Unknown/Stars/Free players).",
+            "Adds formatter-local {S3} fallback: null S3 + Valderrama player id -> Stars.",
             "RC1 source-wrapper hooks are explicitly removed/restored to original calls.",
             (
                 "Title branding patches disabled via --no-branding; binary title strings left unchanged."
