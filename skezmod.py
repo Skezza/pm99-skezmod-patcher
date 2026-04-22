@@ -80,6 +80,7 @@ CAVE_EMPTY_STRING_VA = 0x006E5199
 CAVE_STARS_STRING_VA = 0x006E519A
 CAVE_FREE_STRING_VA = 0x006E51A0
 CAVE_UNKNOWN_STRING_VA = 0x006E51AD
+CAVE_SEARCH_HOVER_TEAM_VA = 0x006E5145
 
 # RC2-proven null-guard cave location.
 CAVE_NULL_GUARD_VA = 0x006E51C0
@@ -325,6 +326,56 @@ def _build_formatter_s3_valderrama_stages(
     return bytes(stage0), bytes(stage1), bytes(stage2)
 
 
+def _build_search_hover_team_fallback(*, cave_va: int, stars_va: int, resume_va: int) -> bytes:
+    """Backfill the search hover/status club cell when the special club text is blank."""
+    out = bytearray()
+
+    out += b"\x66\x8B\x46\x18"  # mov ax,[esi+0x18]
+    out += b"\x66\x3D\xAC\x26"  # cmp ax,0x26ac
+    jne_lookup_pos = len(out)
+    out += b"\x75\x00"
+
+    out += b"\x8B\x46\x10"  # mov eax,[esi+0x10]
+    out += b"\x85\xC0"  # test eax,eax
+    jz_stars_pos = len(out)
+    out += b"\x74\x00"
+    out += b"\x80\x38\x00"  # cmp byte ptr [eax],0
+    jz_stars_empty_pos = len(out)
+    out += b"\x74\x00"
+    jmp_resume_existing_pos = len(out)
+    out += b"\xE9" + b"\x00\x00\x00\x00"
+
+    lookup_va = cave_va + len(out)
+    out += b"\x25\xFF\xFF\x00\x00"  # and eax,0xffff
+    out += b"\xB9\xE0\x4B\x75\x00"  # mov ecx,0x754be0
+    out += b"\x50"  # push eax
+    call_lookup_pos = len(out)
+    out += b"\xE8" + b"\x00\x00\x00\x00"
+    out += b"\x8B\x40\x04"  # mov eax,[eax+0x4]
+    jmp_resume_lookup_pos = len(out)
+    out += b"\xE9" + b"\x00\x00\x00\x00"
+
+    stars_case_va = cave_va + len(out)
+    out += b"\xB8" + struct.pack("<I", stars_va)  # mov eax,Stars
+    jmp_resume_stars_pos = len(out)
+    out += b"\xE9" + b"\x00\x00\x00\x00"
+
+    out[jne_lookup_pos + 1] = (lookup_va - (cave_va + jne_lookup_pos + 2)) & 0xFF
+    out[jz_stars_pos + 1] = (stars_case_va - (cave_va + jz_stars_pos + 2)) & 0xFF
+    out[jz_stars_empty_pos + 1] = (stars_case_va - (cave_va + jz_stars_empty_pos + 2)) & 0xFF
+    out[jmp_resume_existing_pos + 1: jmp_resume_existing_pos + 5] = _rel32(
+        cave_va + jmp_resume_existing_pos, 5, resume_va
+    )
+    out[call_lookup_pos + 1: call_lookup_pos + 5] = _rel32(cave_va + call_lookup_pos, 5, 0x004B5C20)
+    out[jmp_resume_lookup_pos + 1: jmp_resume_lookup_pos + 5] = _rel32(
+        cave_va + jmp_resume_lookup_pos, 5, resume_va
+    )
+    out[jmp_resume_stars_pos + 1: jmp_resume_stars_pos + 5] = _rel32(
+        cave_va + jmp_resume_stars_pos, 5, resume_va
+    )
+    return bytes(out)
+
+
 def _build_fake_team_record(*, name_ptr_va: int, team_id: int) -> bytes:
     rec = bytearray(0x14)
     struct.pack_into("<I", rec, 0x04, int(name_ptr_va))
@@ -368,6 +419,15 @@ def _build_bundle() -> tuple[bytes, dict[str, int], tuple[bytes, ...]]:
     rec_free = _build_fake_team_record(name_ptr_va=string_addrs["free"], team_id=TEAM_ID_FREE_PLAYERS)
 
     prefix = helper_real + rec_unknown + rec_stars + rec_free
+    hover_gap_len = CAVE_SEARCH_HOVER_TEAM_VA - (CAVE_BUNDLE_BASE_VA + len(prefix))
+    if hover_gap_len < 0:
+        raise RuntimeError("Bundle overflow before search hover fallback cave")
+    search_hover_code = _build_search_hover_team_fallback(
+        cave_va=CAVE_SEARCH_HOVER_TEAM_VA,
+        stars_va=string_addrs["stars"],
+        resume_va=0x00406138,
+    )
+    prefix += (b"\x00" * hover_gap_len) + search_hover_code
     prefix_end_va = CAVE_BUNDLE_BASE_VA + len(prefix)
     pad_len = CAVE_EMPTY_STRING_VA - prefix_end_va
     if pad_len < 0:
@@ -522,6 +582,14 @@ def _build_patch_plan(lookup_helper_va: int, *, include_branding: bool) -> list[
             site_va=0x00499DA1,
             expected=bytes.fromhex("8b451885c00f84c4000000"),
             replacement=_build_trampoline(0x00499DA1, CAVE_FORMATTER_S3_STAGE0_VA, 11),
+        ),
+        DirectPatch(
+            name="search_hover_blank_special_club_stars_FUN_00405F30",
+            site_va=0x00406116,
+            expected=bytes.fromhex(
+                "668b4618663dac2675058b4610eb1325ffff0000b9e04b750050e8ebfa0a008b4004"
+            ),
+            replacement=_build_trampoline(0x00406116, CAVE_SEARCH_HOVER_TEAM_VA, 34),
         ),
     ]
 
@@ -702,6 +770,7 @@ def apply_patch(
             "formatter_s3_stage0": f"0x{CAVE_FORMATTER_S3_STAGE0_VA:08X}",
             "formatter_s3_stage1": f"0x{CAVE_FORMATTER_S3_STAGE1_VA:08X}",
             "formatter_s3_stage2": f"0x{CAVE_FORMATTER_S3_STAGE2_VA:08X}",
+            "search_hover_team_fallback": f"0x{CAVE_SEARCH_HOVER_TEAM_VA:08X}",
             "empty": f"0x{string_addrs['empty']:08X}",
             "stars": f"0x{string_addrs['stars']:08X}",
             "free": f"0x{string_addrs['free']:08X}",
@@ -716,6 +785,7 @@ def apply_patch(
             "Keeps RC2 null-guard path for 0x0066F208 dereference.",
             "Adds FUN_004B5C20 miss fallback to safe non-null records (Unknown/Stars/Free players).",
             "Adds formatter-local {S3} fallback: null S3 + Valderrama player id -> Stars.",
+            "Adds search hover/status fallback: blank 0x26AC club text -> Stars.",
             "RC1 source-wrapper hooks are explicitly removed/restored to original calls.",
             (
                 "Title branding patches disabled via --no-branding; binary title strings left unchanged."

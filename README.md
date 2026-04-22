@@ -16,7 +16,7 @@ When the game tries to access the missing team, it results in a **null pointer d
 
 This patch adds **null protection with a Team ID fallback lookup table** via a code cave, preventing the crash and patching most string references. The fallback covers 'Stars', Free players that trigger the same crash (not sure why), and "Unknown Club". The patch is comprehensive, you can access the players for transfer and sign them. 
 
-The patch also covers the Valderrama signing notice formatter path, replacing the broken `You have signed Valderrama of .` suffix with `Stars`. The player search-by-name result list is a separate unresolved UI path and may still omit `Stars`.
+The patch also covers the Valderrama signing notice formatter path, replacing the broken `You have signed Valderrama of .` suffix with `Stars`. It also patches the search-by-name hover/status strip so Valderrama shows `Stars` in the club cell without replacing the normal result-row columns.
 
 <img width="320" height="240" alt="Screenshot from 2026-03-08 23-30-19" src="https://github.com/user-attachments/assets/9c31ccef-fd2e-452d-9cd4-1fe593b6f680" />
 
@@ -28,6 +28,7 @@ Patch consists of:
   - `4705` -> `Stars`
   - `4706` -> `Free players`
 - Formatter-local fallback at `0x00499DA1` for `{S3}` notices where Valderrama's player id is present but the team string is null.
+- Search hover/status fallback at `0x00406116` in `FUN_00405F30` for blank special-club text (`0x26AC`) so the club cell renders `Stars`.
 - (Optional) Lightweight branding text update to `PM99 SkezMod 0.1`.
 
 ## To Use
