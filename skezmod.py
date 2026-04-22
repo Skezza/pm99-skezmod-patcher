@@ -92,6 +92,14 @@ CAVE_FORMATTER_S3_STAGE1_SIZE = 15
 CAVE_FORMATTER_S3_STAGE2_VA = 0x006E42F5
 CAVE_FORMATTER_S3_STAGE2_SIZE = 11
 
+# Search-by-name row painter: replace the two tiny trailing numeric cells with
+# a club-name cell, backed by the same team lookup fallback as the profile path.
+SEARCH_ROW_TEAM_DRAW_SITE_VA = 0x0044FA54
+SEARCH_ROW_TEAM_DRAW_RESUME_VA = 0x0044FC37
+SEARCH_ROW_TEAM_DRAW_SIZE = 483
+SEARCH_ROW_TEAM_RECT_LEFT = 0x141
+SEARCH_ROW_TEAM_RECT_RIGHT = 0x1B9
+
 
 @dataclass(frozen=True)
 class DirectPatch:
@@ -325,6 +333,55 @@ def _build_formatter_s3_valderrama_stages(
     return bytes(stage0), bytes(stage1), bytes(stage2)
 
 
+def _build_search_row_team_draw_patch(*, site_va: int, resume_va: int, total_len: int) -> bytes:
+    """Draw a team-name cell in the player-name search result row."""
+    out = bytearray()
+
+    out += b"\x8B\x54\x24\x38"  # mov edx,[esp+0x38] (player record)
+    out += b"\x31\xC0"  # xor eax,eax
+    out += b"\x66\x8B\x42\x18"  # mov ax,[edx+0x18] (team id)
+    out += b"\x50"  # push eax
+    out += b"\xB9" + struct.pack("<I", 0x00754BE0)  # mov ecx, team lookup context
+    call_lookup_pos = len(out)
+    out += b"\xE8" + b"\x00\x00\x00\x00"
+    out += b"\x85\xC0"  # test eax,eax
+    jz_empty_pos = len(out)
+    out += b"\x74\x00"
+    out += b"\x8B\x40\x04"  # mov eax,[eax+0x04] (team name pointer)
+    out += b"\x85\xC0"  # test eax,eax
+    jnz_draw_pos = len(out)
+    out += b"\x75\x00"
+
+    empty_va = site_va + len(out)
+    out += b"\xB8" + struct.pack("<I", CAVE_EMPTY_STRING_VA)  # mov eax,empty
+
+    draw_va = site_va + len(out)
+    out += b"\x6A\x00"  # push 0
+    out += b"\x68\x00\x01\x00\x00"  # push 0x100
+    out += b"\x83\xEC\x10"  # sub esp,0x10
+    out += b"\x8B\xD4"  # mov edx,esp
+    out += b"\x50"  # push eax (text)
+    out += b"\xC7\x02" + struct.pack("<I", SEARCH_ROW_TEAM_RECT_LEFT)
+    out += b"\xC7\x42\x04\x02\x00\x00\x00"  # top = 2
+    out += b"\xC7\x42\x08" + struct.pack("<I", SEARCH_ROW_TEAM_RECT_RIGHT)
+    out += b"\x89\x7A\x0C"  # bottom = edi
+    out += b"\x8B\xCE"  # mov ecx,esi (draw surface)
+    call_draw_pos = len(out)
+    out += b"\xE8" + b"\x00\x00\x00\x00"
+    jmp_resume_pos = len(out)
+    out += b"\xE9" + b"\x00\x00\x00\x00"
+
+    out[call_lookup_pos + 1: call_lookup_pos + 5] = _rel32(site_va + call_lookup_pos, 5, 0x004B5C20)
+    out[jz_empty_pos + 1] = (empty_va - (site_va + jz_empty_pos + 2)) & 0xFF
+    out[jnz_draw_pos + 1] = (draw_va - (site_va + jnz_draw_pos + 2)) & 0xFF
+    out[call_draw_pos + 1: call_draw_pos + 5] = _rel32(site_va + call_draw_pos, 5, 0x00674430)
+    out[jmp_resume_pos + 1: jmp_resume_pos + 5] = _rel32(site_va + jmp_resume_pos, 5, resume_va)
+
+    if len(out) > total_len:
+        raise RuntimeError(f"Search-row team draw patch overflow ({len(out)} > {total_len})")
+    return bytes(out) + (b"\x90" * (total_len - len(out)))
+
+
 def _build_fake_team_record(*, name_ptr_va: int, team_id: int) -> bytes:
     rec = bytearray(0x14)
     struct.pack_into("<I", rec, 0x04, int(name_ptr_va))
@@ -420,6 +477,14 @@ def _build_patch_plan(lookup_helper_va: int, *, include_branding: bool) -> list[
 
     old_null_guard_trampoline = _build_trampoline(0x0066F1FB, 0x006E51C0, 15)
     old_hook_block = bytes.fromhex("e878ee2200e9efffffff9090")
+    search_row_team_draw_original = bytes.fromhex(
+        "b802000000bb420100003bf8bd87010000894424147f04897c24143bf88944241c7c04897c241c8b5424386a0083ec088d442468d98298000000dd1c2450e8d929070083c4108b5424146a00680001000083ec108bcc5089198951048b54243889690889510c8bcee86f4922006810c672008bcee833492200518bce8bc4c700293cad00e8f387fbff8b4424403dff0000000f83bf00000083ff02bd020000007f028bef83ff02bb020000007c028bdf508d44246050e8a12c070083c408b9880100006a00680001000083ec108bd450890ab9a0010000896a04894a088bce895a0ce8f54822008b6c243cbb02000000513beb8bc47308c700ff1c0000eb06c700293cad008bcee87087fbff3bfb895c242c7f04897c242c3bfb7c028bdf8d44245c5550e8332c070083c408b9a10100006a00680001000083ec108bd450890a8b4c2448894a04b9b9010000894a08895a0ce98500000083ff02ba88010000bba0010000b9020000007f028bcf83ff02b8020000007c028bc76a00680001000083ec108bec689cc67200895500894d048bce895d0889450ce83f48220083ff02b8a1010000b9b9010000bb020000007f028bdf83ff02ba020000007c028bd76a00680001000083ec108bec689cc67200894500895d04894d0889550c8bcee8f9472200"
+    )
+    search_row_team_draw_patch = _build_search_row_team_draw_patch(
+        site_va=SEARCH_ROW_TEAM_DRAW_SITE_VA,
+        resume_va=SEARCH_ROW_TEAM_DRAW_RESUME_VA,
+        total_len=SEARCH_ROW_TEAM_DRAW_SIZE,
+    )
 
     patches: list[DirectPatch] = [
         # Revert old experimental upstream list/profile trampolines.
@@ -522,6 +587,12 @@ def _build_patch_plan(lookup_helper_va: int, *, include_branding: bool) -> list[
             site_va=0x00499DA1,
             expected=bytes.fromhex("8b451885c00f84c4000000"),
             replacement=_build_trampoline(0x00499DA1, CAVE_FORMATTER_S3_STAGE0_VA, 11),
+        ),
+        DirectPatch(
+            name="search_by_name_row_team_cell_FUN_0044F590",
+            site_va=SEARCH_ROW_TEAM_DRAW_SITE_VA,
+            expected=search_row_team_draw_original,
+            replacement=search_row_team_draw_patch,
         ),
     ]
 
@@ -716,6 +787,7 @@ def apply_patch(
             "Keeps RC2 null-guard path for 0x0066F208 dereference.",
             "Adds FUN_004B5C20 miss fallback to safe non-null records (Unknown/Stars/Free players).",
             "Adds formatter-local {S3} fallback: null S3 + Valderrama player id -> Stars.",
+            "Adds search-by-name row club cell via FUN_0044F590 painter patch.",
             "RC1 source-wrapper hooks are explicitly removed/restored to original calls.",
             (
                 "Title branding patches disabled via --no-branding; binary title strings left unchanged."
