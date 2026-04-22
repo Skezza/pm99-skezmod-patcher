@@ -16,7 +16,7 @@ When the game tries to access the missing team, it results in a **null pointer d
 
 This patch adds **null protection with a Team ID fallback lookup table** via a code cave, preventing the crash and patching most string references. The fallback covers 'Stars', Free players that trigger the same crash (not sure why), and "Unknown Club". The patch is comprehensive, you can access the players for transfer and sign them. 
 
-The patch also covers signing notice formatter paths where the `{S3}` club suffix is null. It resolves the event team id through the same fallback lookup, so Stars players such as Valderrama and Lalas render `Stars` instead of `.`. It also patches the search-by-name hover/status strip so Stars players show `Stars` in the club cell without replacing the normal result-row columns.
+The patch also covers signing notice formatter paths where the `{S3}` club suffix is null. It resolves the event team id through the same fallback lookup, so Stars players such as Valderrama and Lalas render `Stars` instead of `.` without player-id hardcoding. It also patches the search-by-name hover/status strip and player-record special-club renderer so blank `0x26AC` Stars surfaces render `Stars` without replacing the normal result-row columns.
 
 <img width="320" height="240" alt="Screenshot from 2026-03-08 23-30-19" src="https://github.com/user-attachments/assets/9c31ccef-fd2e-452d-9cd4-1fe593b6f680" />
 
@@ -29,6 +29,7 @@ Patch consists of:
   - `4706` -> `Free players`
 - Formatter-local fallback at `0x00499DA1` for `{S3}` notices where the supplied team string is null; it resolves the event team id through `FUN_004B5C20`, so all covered fallback teams scale without player-id hardcoding.
 - Search hover/status fallback at `0x00406116` in `FUN_00405F30` for blank special-club text (`0x26AC`) so the club cell renders `Stars`.
+- Player-record fallback at `0x0043F20F` in the player profile renderer for blank special-club text (`0x26AC`) so Lalas/Stars player records render `Stars`.
 - (Optional) Lightweight branding text update to `PM99 SkezMod 0.1`.
 
 ## To Use

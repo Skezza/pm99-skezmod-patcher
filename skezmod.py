@@ -83,6 +83,8 @@ CAVE_SEARCH_HOVER_TEAM_VA = 0x006E5145
 
 # RC2-proven null-guard cave location.
 CAVE_NULL_GUARD_VA = 0x006E51C0
+CAVE_PROFILE_SPECIAL_TEAM_VA = 0x006E51E1
+CAVE_PROFILE_SPECIAL_TEAM_SIZE = 31
 
 # Formatter-local fallback for broken "{S3}" team suffixes in signing notices.
 CAVE_FORMATTER_S3_STAGE0_VA = 0x006E4251
@@ -407,6 +409,35 @@ def _build_search_hover_team_fallback(*, cave_va: int, stars_va: int, resume_va:
     return bytes(out)
 
 
+def _build_profile_special_team_fallback(*, cave_va: int, stars_va: int, resume_va: int) -> bytes:
+    """Backfill player-record special club text when the inline pointer is blank."""
+    out = bytearray()
+    out += b"\x8B\x47\x10"  # mov eax,[edi+0x10]
+    out += b"\x85\xC0"  # test eax,eax
+    jz_stars_pos = len(out)
+    out += b"\x74\x00"
+    out += b"\x80\x38\x00"  # cmp byte ptr [eax],0
+    jz_stars_empty_pos = len(out)
+    out += b"\x74\x00"
+    jmp_resume_existing_pos = len(out)
+    out += b"\xE9" + b"\x00\x00\x00\x00"
+
+    stars_case_va = cave_va + len(out)
+    out += b"\xB8" + struct.pack("<I", stars_va)  # mov eax,Stars
+    jmp_resume_stars_pos = len(out)
+    out += b"\xE9" + b"\x00\x00\x00\x00"
+
+    out[jz_stars_pos + 1] = (stars_case_va - (cave_va + jz_stars_pos + 2)) & 0xFF
+    out[jz_stars_empty_pos + 1] = (stars_case_va - (cave_va + jz_stars_empty_pos + 2)) & 0xFF
+    out[jmp_resume_existing_pos + 1: jmp_resume_existing_pos + 5] = _rel32(
+        cave_va + jmp_resume_existing_pos, 5, resume_va
+    )
+    out[jmp_resume_stars_pos + 1: jmp_resume_stars_pos + 5] = _rel32(
+        cave_va + jmp_resume_stars_pos, 5, resume_va
+    )
+    return bytes(out)
+
+
 def _build_fake_team_record(*, name_ptr_va: int, team_id: int) -> bytes:
     rec = bytearray(0x14)
     struct.pack_into("<I", rec, 0x04, int(name_ptr_va))
@@ -622,6 +653,12 @@ def _build_patch_plan(lookup_helper_va: int, *, include_branding: bool) -> list[
             ),
             replacement=_build_trampoline(0x00406116, CAVE_SEARCH_HOVER_TEAM_VA, 34),
         ),
+        DirectPatch(
+            name="profile_blank_special_club_stars_FUN_0043EBD0",
+            site_va=0x0043F20F,
+            expected=bytes.fromhex("8b4710eb21"),
+            replacement=_build_trampoline(0x0043F20F, CAVE_PROFILE_SPECIAL_TEAM_VA, 5),
+        ),
     ]
 
     if include_branding:
@@ -741,6 +778,39 @@ def apply_patch(
         }
     )
 
+    profile_special_stub = _build_profile_special_team_fallback(
+        cave_va=CAVE_PROFILE_SPECIAL_TEAM_VA,
+        stars_va=string_addrs["stars"],
+        resume_va=0x0043F235,
+    )
+    if len(profile_special_stub) > CAVE_PROFILE_SPECIAL_TEAM_SIZE:
+        raise RuntimeError(
+            f"Profile special-team cave overflow ({len(profile_special_stub)} > {CAVE_PROFILE_SPECIAL_TEAM_SIZE})"
+        )
+    profile_special_blob = profile_special_stub + (
+        b"\x00" * (CAVE_PROFILE_SPECIAL_TEAM_SIZE - len(profile_special_stub))
+    )
+    profile_special_off = _va_to_file_offset(input_bytes, CAVE_PROFILE_SPECIAL_TEAM_VA)
+    current_profile_special = input_bytes[
+        profile_special_off: profile_special_off + CAVE_PROFILE_SPECIAL_TEAM_SIZE
+    ]
+    allowed_profile_special = {b"\x00" * CAVE_PROFILE_SPECIAL_TEAM_SIZE, profile_special_blob}
+    if (current_profile_special not in allowed_profile_special) and (not force):
+        raise RuntimeError(
+            "Profile special-team cave bytes are not empty/known. Use --force only after manual verification."
+        )
+    patched[profile_special_off: profile_special_off + CAVE_PROFILE_SPECIAL_TEAM_SIZE] = profile_special_blob
+    rows.append(
+        {
+            "name": "write_profile_special_team_cave",
+            "site_va": f"0x{CAVE_PROFILE_SPECIAL_TEAM_VA:08X}",
+            "site_file_offset": f"0x{profile_special_off:08X}",
+            "site_before": current_profile_special.hex(),
+            "site_after": profile_special_blob.hex(),
+            "bytes_written": CAVE_PROFILE_SPECIAL_TEAM_SIZE,
+        }
+    )
+
     formatter_s3_stage0, formatter_s3_stage1, formatter_s3_stage2 = _build_formatter_s3_team_lookup_stages(
         stage0_va=CAVE_FORMATTER_S3_STAGE0_VA,
         stage1_va=CAVE_FORMATTER_S3_STAGE1_VA,
@@ -806,6 +876,7 @@ def apply_patch(
             "bundle_size": CAVE_BUNDLE_SIZE,
             "lookup_helper": f"0x{lookup_helper_va:08X}",
             "null_guard": f"0x{CAVE_NULL_GUARD_VA:08X}",
+            "profile_special_team_fallback": f"0x{CAVE_PROFILE_SPECIAL_TEAM_VA:08X}",
             "formatter_s3_stage0": f"0x{CAVE_FORMATTER_S3_STAGE0_VA:08X}",
             "formatter_s3_stage1": f"0x{CAVE_FORMATTER_S3_STAGE1_VA:08X}",
             "formatter_s3_stage2": f"0x{CAVE_FORMATTER_S3_STAGE2_VA:08X}",
@@ -825,6 +896,7 @@ def apply_patch(
             "Adds FUN_004B5C20 miss fallback to safe non-null records (Unknown/Stars/Free players).",
             "Adds formatter-local {S3} fallback: null S3 + event team lookup -> fallback team name.",
             "Adds search hover/status fallback: blank 0x26AC club text -> Stars.",
+            "Adds player-record fallback: blank 0x26AC club text -> Stars.",
             "RC1 source-wrapper hooks are explicitly removed/restored to original calls.",
             (
                 "Title branding patches disabled via --no-branding; binary title strings left unchanged."
