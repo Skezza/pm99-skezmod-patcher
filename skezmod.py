@@ -93,6 +93,12 @@ CAVE_FORMATTER_S3_STAGE1_VA = 0x006E42D1
 CAVE_FORMATTER_S3_STAGE1_SIZE = 15
 CAVE_FORMATTER_S3_STAGE2_VA = 0x006E42F5
 CAVE_FORMATTER_S3_STAGE2_SIZE = 11
+CAVE_FORMATTER_S3_SKIP_VA = 0x006E4E85
+CAVE_FORMATTER_S3_SKIP_SIZE = 11
+CAVE_FORMATTER_S3_TEAM_LOOKUP1_VA = 0x006E4DF2
+CAVE_FORMATTER_S3_TEAM_LOOKUP1_SIZE = 14
+CAVE_FORMATTER_S3_TEAM_LOOKUP2_VA = 0x006E4E22
+CAVE_FORMATTER_S3_TEAM_LOOKUP2_SIZE = 14
 
 
 @dataclass(frozen=True)
@@ -296,39 +302,6 @@ def _build_lookup_result_fallback_helper(
     return bytes(out)
 
 
-def _build_formatter_s3_valderrama_stages(
-    *,
-    stage0_va: int,
-    stage1_va: int,
-    stage2_va: int,
-    stars_va: int,
-    original_push_va: int,
-    original_skip_va: int,
-) -> tuple[bytes, bytes, bytes]:
-    """Build the previous Valderrama-only stages for upgrade recognition."""
-    valderrama_player_record_id = 20864  # 0x5180 in indexed JUG98030.FDI.
-
-    stage0 = bytearray()
-    stage0 += b"\x8B\x45\x18"
-    stage0 += b"\x85\xC0"
-    jz_stage1_pos = len(stage0)
-    stage0 += b"\x74\x00"
-    stage0 += b"\xE9" + _rel32(stage0_va + len(stage0), 5, original_push_va)
-    stage0[jz_stage1_pos + 1] = (stage1_va - (stage0_va + jz_stage1_pos + 2)) & 0xFF
-
-    stage1 = bytearray()
-    stage1 += b"\x81\x7D\x08" + struct.pack("<I", valderrama_player_record_id)
-    je_stage2_pos = len(stage1)
-    stage1 += b"\x74\x00"
-    stage1 += b"\xE9" + _rel32(stage1_va + len(stage1), 5, original_skip_va)
-    stage1[je_stage2_pos + 1] = (stage2_va - (stage1_va + je_stage2_pos + 2)) & 0xFF
-
-    stage2 = bytearray()
-    stage2 += b"\xB8" + struct.pack("<I", stars_va)
-    stage2 += b"\xE9" + _rel32(stage2_va + len(stage2), 5, original_push_va)
-    return bytes(stage0), bytes(stage1), bytes(stage2)
-
-
 def _build_formatter_s3_team_lookup_stages(
     *,
     stage0_va: int,
@@ -357,6 +330,71 @@ def _build_formatter_s3_team_lookup_stages(
     stage2 += b"\x8B\x40\x04"  # mov eax,[eax+0x04] (team name pointer)
     stage2 += b"\xE9" + _rel32(stage2_va + len(stage2), 5, original_push_va)
     return bytes(stage0), bytes(stage1), bytes(stage2)
+
+
+def _build_formatter_s3_zero_team_stars_fallback(
+    *,
+    stage0_va: int,
+    stage1_va: int,
+    stage2_va: int,
+    skip_va: int,
+    team_lookup1_va: int,
+    team_lookup2_va: int,
+    stars_va: int,
+    team_lookup_va: int,
+    original_push_va: int,
+    original_skip_va: int,
+) -> tuple[bytes, bytes, bytes, tuple[tuple[str, int, int, bytes], ...]]:
+    """Build a scalable null-{S3} fallback for signing-notice style events.
+
+    Strategy:
+    - preserve non-null {S3}
+    - if event team id ([ebp+0x0c]) is non-zero, resolve it through the central team lookup
+    - if event team id is zero, use Stars for the broken special-team signing feed
+    """
+    stage0 = bytearray()
+    stage0 += b"\x8B\x45\x18"  # mov eax,[ebp+0x18]
+    stage0 += b"\x85\xC0"  # test eax,eax
+    jz_stage1_pos = len(stage0)
+    stage0 += b"\x74\x00"
+    stage0 += b"\xE9" + _rel32(stage0_va + len(stage0), 5, original_push_va)
+    stage0[jz_stage1_pos + 1] = (stage1_va - (stage0_va + jz_stage1_pos + 2)) & 0xFF
+
+    stage1 = bytearray()
+    stage1 += b"\x83\x7D\x0C\x00"  # cmp dword ptr [ebp+0x0c],0
+    je_stage2_pos = len(stage1)
+    stage1 += b"\x74\x00"  # zero event-team id: Stars
+    stage1 += b"\x8B\x45\x0C"  # mov eax,[ebp+0x0c]
+    stage1 += b"\xE9" + _rel32(stage1_va + len(stage1), 5, team_lookup1_va)
+    stage1[je_stage2_pos + 1] = (stage2_va - (stage1_va + je_stage2_pos + 2)) & 0xFF
+
+    stage2 = bytearray()
+    stage2 += b"\xB8" + struct.pack("<I", stars_va)  # mov eax,Stars
+    stage2 += b"\xE9" + _rel32(stage2_va + len(stage2), 5, original_push_va)
+
+    skip = bytearray()
+    skip += b"\xE9" + _rel32(skip_va, 5, original_skip_va)
+
+    team_lookup1 = bytearray()
+    team_lookup1 += b"\xB9\xE0\x4B\x75\x00"  # mov ecx,0x754be0
+    team_lookup1 += b"\x50"  # push eax
+    team_lookup1 += b"\xE8" + _rel32(team_lookup1_va + len(team_lookup1), 5, team_lookup_va)
+    team_lookup1 += b"\xEB\x00"
+    team_lookup1[-1] = (team_lookup2_va - (team_lookup1_va + len(team_lookup1))) & 0xFF
+
+    team_lookup2 = bytearray()
+    team_lookup2 += b"\x85\xC0"  # test eax,eax
+    team_lookup2 += b"\x74\x00"  # jz -> skip
+    team_lookup2 += b"\x8B\x40\x04"  # mov eax,[eax+0x04]
+    team_lookup2 += b"\xE9" + _rel32(team_lookup2_va + len(team_lookup2), 5, original_push_va)
+    team_lookup2[3] = (skip_va - (team_lookup2_va + 4)) & 0xFF
+
+    extras = (
+        ("write_formatter_s3_skip_cave", skip_va, CAVE_FORMATTER_S3_SKIP_SIZE, bytes(skip)),
+        ("write_formatter_s3_team_lookup1_cave", team_lookup1_va, CAVE_FORMATTER_S3_TEAM_LOOKUP1_SIZE, bytes(team_lookup1)),
+        ("write_formatter_s3_team_lookup2_cave", team_lookup2_va, CAVE_FORMATTER_S3_TEAM_LOOKUP2_SIZE, bytes(team_lookup2)),
+    )
+    return bytes(stage0), bytes(stage1), bytes(stage2), extras
 
 
 def _build_search_hover_team_fallback(*, cave_va: int, stars_va: int, resume_va: int) -> bytes:
@@ -811,25 +849,32 @@ def apply_patch(
         }
     )
 
-    formatter_s3_stage0, formatter_s3_stage1, formatter_s3_stage2 = _build_formatter_s3_team_lookup_stages(
+    formatter_s3_stage0, formatter_s3_stage1, formatter_s3_stage2, formatter_s3_extra_specs = _build_formatter_s3_zero_team_stars_fallback(
+        stage0_va=CAVE_FORMATTER_S3_STAGE0_VA,
+        stage1_va=CAVE_FORMATTER_S3_STAGE1_VA,
+        stage2_va=CAVE_FORMATTER_S3_STAGE2_VA,
+        skip_va=CAVE_FORMATTER_S3_SKIP_VA,
+        team_lookup1_va=CAVE_FORMATTER_S3_TEAM_LOOKUP1_VA,
+        team_lookup2_va=CAVE_FORMATTER_S3_TEAM_LOOKUP2_VA,
+        stars_va=string_addrs["stars"],
+        team_lookup_va=0x004B5C20,
+        original_push_va=0x00499E62,
+        original_skip_va=0x00499E70,
+    )
+    old_formatter_s3_stage0, old_formatter_s3_stage1, old_formatter_s3_stage2 = _build_formatter_s3_team_lookup_stages(
         stage0_va=CAVE_FORMATTER_S3_STAGE0_VA,
         stage1_va=CAVE_FORMATTER_S3_STAGE1_VA,
         stage2_va=CAVE_FORMATTER_S3_STAGE2_VA,
         team_lookup_va=0x004B5C20,
         original_push_va=0x00499E62,
     )
-    old_formatter_s3_stage0, old_formatter_s3_stage1, old_formatter_s3_stage2 = _build_formatter_s3_valderrama_stages(
-        stage0_va=CAVE_FORMATTER_S3_STAGE0_VA,
-        stage1_va=CAVE_FORMATTER_S3_STAGE1_VA,
-        stage2_va=CAVE_FORMATTER_S3_STAGE2_VA,
-        stars_va=string_addrs["stars"],
-        original_push_va=0x00499E62,
-        original_skip_va=0x00499E70,
-    )
     formatter_s3_specs = (
         ("write_formatter_s3_stage0_cave", CAVE_FORMATTER_S3_STAGE0_VA, CAVE_FORMATTER_S3_STAGE0_SIZE, formatter_s3_stage0, old_formatter_s3_stage0),
         ("write_formatter_s3_stage1_cave", CAVE_FORMATTER_S3_STAGE1_VA, CAVE_FORMATTER_S3_STAGE1_SIZE, formatter_s3_stage1, old_formatter_s3_stage1),
         ("write_formatter_s3_stage2_cave", CAVE_FORMATTER_S3_STAGE2_VA, CAVE_FORMATTER_S3_STAGE2_SIZE, formatter_s3_stage2, old_formatter_s3_stage2),
+    ) + tuple(
+        (name, cave_va, cave_size, cave_code, b"")
+        for name, cave_va, cave_size, cave_code in formatter_s3_extra_specs
     )
     for name, cave_va, cave_size, cave_code, old_cave_code in formatter_s3_specs:
         if len(cave_code) > cave_size:
@@ -837,8 +882,10 @@ def apply_patch(
         cave_blob = cave_code + (b"\xCC" * (cave_size - len(cave_code)))
         cave_off = _va_to_file_offset(input_bytes, cave_va)
         current_cave = input_bytes[cave_off: cave_off + cave_size]
-        old_cave_blob = old_cave_code + (b"\xCC" * (cave_size - len(old_cave_code)))
-        if (not force) and current_cave not in {b"\xCC" * cave_size, cave_blob, old_cave_blob}:
+        allowed_caves = {b"\xCC" * cave_size, cave_blob}
+        if old_cave_code:
+            allowed_caves.add(old_cave_code + (b"\xCC" * (cave_size - len(old_cave_code))))
+        if (not force) and current_cave not in allowed_caves:
             raise RuntimeError(
                 f"{name} cave bytes are not recognized. Use --force only after manual verification."
             )
@@ -894,7 +941,7 @@ def apply_patch(
             "SkezMod v0.1 patch set (includes Stars hover fix from RC2+).",
             "Keeps RC2 null-guard path for 0x0066F208 dereference.",
             "Adds FUN_004B5C20 miss fallback to safe non-null records (Unknown/Stars/Free players).",
-            "Adds formatter-local {S3} fallback: null S3 + event team lookup -> fallback team name.",
+            "Adds formatter-local {S3} fallback: non-null S3 is preserved, nonzero event team ids use central lookup, zero-team signing notices use Stars.",
             "Adds search hover/status fallback: blank 0x26AC club text -> Stars.",
             "Adds player-record fallback: blank 0x26AC club text -> Stars.",
             "RC1 source-wrapper hooks are explicitly removed/restored to original calls.",
