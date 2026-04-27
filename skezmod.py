@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""SkezMod DB repair plus minimal MANAGPRE.EXE null guard.
+"""SkezMod DB repair plus scoped MANAGPRE.EXE guards.
 
-This patcher deliberately avoids the old Stars code-cave fallback strategy.
-The scalable fix is database-side: find the linked ``Stars`` team roster in
-``DBDAT/EQ98030.FDI`` and pad every short linked player payload in
-``DBDAT/JUG98030.FDI`` to the runtime-safe minimum length observed during the
-investigation. The EXE patch is reduced to the single null-pointer guard needed
-to keep the game from crashing if a legacy text pointer still resolves NULL.
+The scalable display fix is database-side: find the linked ``Stars`` team
+roster in ``DBDAT/EQ98030.FDI``, move it off the runtime-special ``0x26AC``
+record id, and pad every short linked player payload in ``DBDAT/JUG98030.FDI``
+to the runtime-safe minimum length observed during the investigation.
+
+The retained EXE surface is intentionally narrow:
+- a null-pointer guard for the legacy text reader crash path;
+- a formatter-local ``{S3}`` fallback for signing news where MANAGPRE supplies
+  a null club argument before the formatter runs.
 """
 
 from __future__ import annotations
@@ -44,6 +47,27 @@ FDI_INDEX_START = 0x14
 XOR_KEY = 0x61
 STARS_TEAM_NAME = "Stars"
 MIN_LINKED_PLAYER_PAYLOAD_LENGTH = 80
+STARS_BROKEN_EQ_RECORD_ID = 0x26AC
+STARS_SAFE_EQ_RECORD_ID = 9899
+STARS_STRING_VA = 0x006E519A
+FORMATTER_S3_SITE_VA = 0x00499DA1
+FORMATTER_S3_SITE_ORIGINAL = bytes.fromhex("8b451885c00f84c4000000")
+FORMATTER_S3_ORIGINAL_PUSH_VA = 0x00499E62
+FORMATTER_S3_ORIGINAL_SKIP_VA = 0x00499E70
+FORMATTER_S3_STAGE0_VA = 0x006E4251
+FORMATTER_S3_STAGE0_SIZE = 15
+FORMATTER_S3_STAGE1_VA = 0x006E42D1
+FORMATTER_S3_STAGE1_SIZE = 15
+FORMATTER_S3_STAGE2_VA = 0x006E42F5
+FORMATTER_S3_STAGE2_SIZE = 11
+FORMATTER_S3_SKIP_VA = 0x006E4E85
+FORMATTER_S3_SKIP_SIZE = 11
+FORMATTER_S3_TEAM_LOOKUP1_VA = 0x006E4DF2
+FORMATTER_S3_TEAM_LOOKUP1_SIZE = 14
+FORMATTER_S3_TEAM_LOOKUP2_VA = 0x006E4E22
+FORMATTER_S3_TEAM_LOOKUP2_SIZE = 14
+TEAM_LOOKUP_VA = 0x004B5C20
+VALDERRAMA_PLAYER_RECORD_ID = 20864
 
 
 @dataclass(frozen=True)
@@ -210,6 +234,105 @@ def _build_obsolete_empty_text_null_guard_stub() -> bytes:
     return bytes(out)
 
 
+def _build_formatter_s3_team_lookup_stages() -> tuple[bytes, bytes, bytes]:
+    """Older retained variant: null {S3} resolved by event/team id lookup."""
+    stage0 = bytearray()
+    stage0 += b"\x8B\x45\x18"  # mov eax,[ebp+0x18]
+    stage0 += b"\x85\xC0"  # test eax,eax
+    jz_stage1_pos = len(stage0)
+    stage0 += b"\x74\x00"
+    stage0 += b"\xE9" + _rel32(FORMATTER_S3_STAGE0_VA + len(stage0), 5, FORMATTER_S3_ORIGINAL_PUSH_VA)
+    stage0[jz_stage1_pos + 1] = (FORMATTER_S3_STAGE1_VA - (FORMATTER_S3_STAGE0_VA + jz_stage1_pos + 2)) & 0xFF
+
+    stage1 = bytearray()
+    stage1 += b"\xB9\xE0\x4B\x75\x00"  # mov ecx,0x754be0
+    stage1 += b"\xFF\x75\x0C"  # push dword ptr [ebp+0x0c]
+    stage1 += b"\xE8" + _rel32(FORMATTER_S3_STAGE1_VA + len(stage1), 5, TEAM_LOOKUP_VA)
+    stage1 += b"\xEB\x00"
+    stage1[-1] = (FORMATTER_S3_STAGE2_VA - (FORMATTER_S3_STAGE1_VA + len(stage1))) & 0xFF
+
+    stage2 = bytearray()
+    stage2 += b"\x8B\x40\x04"  # mov eax,[eax+0x04]
+    stage2 += b"\xE9" + _rel32(FORMATTER_S3_STAGE2_VA + len(stage2), 5, FORMATTER_S3_ORIGINAL_PUSH_VA)
+    return bytes(stage0), bytes(stage1), bytes(stage2)
+
+
+def _build_formatter_s3_valderrama_stages() -> tuple[bytes, bytes, bytes]:
+    """Older v0.1 compatibility variant: null {S3} only for Valderrama."""
+    stage0 = bytearray()
+    stage0 += b"\x8B\x45\x18"
+    stage0 += b"\x85\xC0"
+    jz_stage1_pos = len(stage0)
+    stage0 += b"\x74\x00"
+    stage0 += b"\xE9" + _rel32(FORMATTER_S3_STAGE0_VA + len(stage0), 5, FORMATTER_S3_ORIGINAL_PUSH_VA)
+    stage0[jz_stage1_pos + 1] = (FORMATTER_S3_STAGE1_VA - (FORMATTER_S3_STAGE0_VA + jz_stage1_pos + 2)) & 0xFF
+
+    stage1 = bytearray()
+    stage1 += b"\x81\x7D\x08" + struct.pack("<I", VALDERRAMA_PLAYER_RECORD_ID)
+    je_stage2_pos = len(stage1)
+    stage1 += b"\x74\x00"
+    stage1 += b"\xE9" + _rel32(FORMATTER_S3_STAGE1_VA + len(stage1), 5, FORMATTER_S3_ORIGINAL_SKIP_VA)
+    stage1[je_stage2_pos + 1] = (FORMATTER_S3_STAGE2_VA - (FORMATTER_S3_STAGE1_VA + je_stage2_pos + 2)) & 0xFF
+
+    stage2 = bytearray()
+    stage2 += b"\xB8" + struct.pack("<I", STARS_STRING_VA)
+    stage2 += b"\xE9" + _rel32(FORMATTER_S3_STAGE2_VA + len(stage2), 5, FORMATTER_S3_ORIGINAL_PUSH_VA)
+    return bytes(stage0), bytes(stage1), bytes(stage2)
+
+
+def _build_formatter_s3_zero_team_stars_fallback() -> tuple[bytes, bytes, bytes, tuple[tuple[str, int, int, bytes], ...]]:
+    """Scalable null-{S3} fallback for signing-notice style events.
+
+    Non-null formatter input is untouched. Nonzero event/team ids are resolved
+    through the central lookup. The broken Stars signing feed reaches the
+    formatter with both {S3} and the event team id set to null/zero, so that
+    narrow case receives the literal Stars club suffix.
+    """
+    stage0 = bytearray()
+    stage0 += b"\x8B\x45\x18"  # mov eax,[ebp+0x18]
+    stage0 += b"\x85\xC0"  # test eax,eax
+    jz_stage1_pos = len(stage0)
+    stage0 += b"\x74\x00"
+    stage0 += b"\xE9" + _rel32(FORMATTER_S3_STAGE0_VA + len(stage0), 5, FORMATTER_S3_ORIGINAL_PUSH_VA)
+    stage0[jz_stage1_pos + 1] = (FORMATTER_S3_STAGE1_VA - (FORMATTER_S3_STAGE0_VA + jz_stage1_pos + 2)) & 0xFF
+
+    stage1 = bytearray()
+    stage1 += b"\x83\x7D\x0C\x00"  # cmp dword ptr [ebp+0x0c],0
+    je_stage2_pos = len(stage1)
+    stage1 += b"\x74\x00"
+    stage1 += b"\x8B\x45\x0C"  # mov eax,[ebp+0x0c]
+    stage1 += b"\xE9" + _rel32(FORMATTER_S3_STAGE1_VA + len(stage1), 5, FORMATTER_S3_TEAM_LOOKUP1_VA)
+    stage1[je_stage2_pos + 1] = (FORMATTER_S3_STAGE2_VA - (FORMATTER_S3_STAGE1_VA + je_stage2_pos + 2)) & 0xFF
+
+    stage2 = bytearray()
+    stage2 += b"\xB8" + struct.pack("<I", STARS_STRING_VA)
+    stage2 += b"\xE9" + _rel32(FORMATTER_S3_STAGE2_VA + len(stage2), 5, FORMATTER_S3_ORIGINAL_PUSH_VA)
+
+    skip = bytearray()
+    skip += b"\xE9" + _rel32(FORMATTER_S3_SKIP_VA, 5, FORMATTER_S3_ORIGINAL_SKIP_VA)
+
+    team_lookup1 = bytearray()
+    team_lookup1 += b"\xB9\xE0\x4B\x75\x00"  # mov ecx,0x754be0
+    team_lookup1 += b"\x50"  # push eax
+    team_lookup1 += b"\xE8" + _rel32(FORMATTER_S3_TEAM_LOOKUP1_VA + len(team_lookup1), 5, TEAM_LOOKUP_VA)
+    team_lookup1 += b"\xEB\x00"
+    team_lookup1[-1] = (FORMATTER_S3_TEAM_LOOKUP2_VA - (FORMATTER_S3_TEAM_LOOKUP1_VA + len(team_lookup1))) & 0xFF
+
+    team_lookup2 = bytearray()
+    team_lookup2 += b"\x85\xC0"  # test eax,eax
+    team_lookup2 += b"\x74\x00"  # jz -> skip
+    team_lookup2 += b"\x8B\x40\x04"  # mov eax,[eax+0x04]
+    team_lookup2 += b"\xE9" + _rel32(FORMATTER_S3_TEAM_LOOKUP2_VA + len(team_lookup2), 5, FORMATTER_S3_ORIGINAL_PUSH_VA)
+    team_lookup2[3] = (FORMATTER_S3_SKIP_VA - (FORMATTER_S3_TEAM_LOOKUP2_VA + 4)) & 0xFF
+
+    extras = (
+        ("write_formatter_s3_skip_cave", FORMATTER_S3_SKIP_VA, FORMATTER_S3_SKIP_SIZE, bytes(skip)),
+        ("write_formatter_s3_team_lookup1_cave", FORMATTER_S3_TEAM_LOOKUP1_VA, FORMATTER_S3_TEAM_LOOKUP1_SIZE, bytes(team_lookup1)),
+        ("write_formatter_s3_team_lookup2_cave", FORMATTER_S3_TEAM_LOOKUP2_VA, FORMATTER_S3_TEAM_LOOKUP2_SIZE, bytes(team_lookup2)),
+    )
+    return bytes(stage0), bytes(stage1), bytes(stage2), extras
+
+
 def _known_old_exe_restore_sites() -> list[RestoreSite]:
     orig_search = bytes.fromhex("e8d51204008b4004")
     orig_transfer_a = bytes.fromhex("e8d8b3fbff8b4004")
@@ -240,7 +363,6 @@ def _known_old_exe_restore_sites() -> list[RestoreSite]:
             ),
         ),
         RestoreSite("restore_obsolete_lookup_hook_block", 0x004B5C84, bytes.fromhex("909090909090909090909090"), (bytes.fromhex("e878ee2200e9efffffff9090"),)),
-        RestoreSite("restore_obsolete_formatter_s3_hook_FUN_00499D00", 0x00499DA1, bytes.fromhex("8b451885c00f84c4000000"), (_build_trampoline(0x00499DA1, 0x006E4251, 11),)),
         RestoreSite(
             "restore_obsolete_search_hover_hook_FUN_00405F30",
             0x00406116,
@@ -255,12 +377,6 @@ def _known_old_exe_restore_sites() -> list[RestoreSite]:
 
 def _known_old_cave_restore_ranges() -> list[CaveRestoreRange]:
     return [
-        CaveRestoreRange("clear_obsolete_formatter_s3_stage0_cave", 0x006E4251, b"\xCC" * 15),
-        CaveRestoreRange("clear_obsolete_formatter_s3_stage1_cave", 0x006E42D1, b"\xCC" * 15),
-        CaveRestoreRange("clear_obsolete_formatter_s3_stage2_cave", 0x006E42F5, b"\xCC" * 11),
-        CaveRestoreRange("clear_obsolete_formatter_s3_skip_cave", 0x006E4E85, b"\xCC" * 11),
-        CaveRestoreRange("clear_obsolete_formatter_s3_lookup1_cave", 0x006E4DF2, b"\xCC" * 14),
-        CaveRestoreRange("clear_obsolete_formatter_s3_lookup2_cave", 0x006E4E22, b"\xCC" * 14),
         CaveRestoreRange("clear_obsolete_lookup_fallback_bundle_cave", 0x006E5092, b"\x00" * 302),
         CaveRestoreRange("clear_obsolete_profile_special_team_cave", 0x006E51E1, b"\x00" * 31),
     ]
@@ -440,6 +556,34 @@ def _resolve_stars_roster(team_file: Path, team_name: str = STARS_TEAM_NAME) -> 
     return matches[0]
 
 
+def _rewrite_indexed_record_id(
+    file_data: bytes,
+    indexed: IndexedFDIFile,
+    old_record_id: int,
+    new_record_id: int,
+) -> bytes:
+    if old_record_id == new_record_id:
+        return file_data
+
+    old_entry = None
+    for entry in indexed.entries:
+        if int(entry.record_id) == int(old_record_id):
+            old_entry = entry
+            break
+    if old_entry is None:
+        raise RuntimeError(f"Indexed record id {old_record_id} not found")
+    if any(int(entry.record_id) == int(new_record_id) for entry in indexed.entries):
+        raise RuntimeError(f"Cannot rewrite record {old_record_id} to {new_record_id}: target id already exists")
+
+    patched = bytearray(file_data)
+    struct.pack_into("<I", patched, int(old_entry.index_offset), int(new_record_id))
+
+    reparsed = _parse_indexed_fdi(bytes(patched))
+    if not any(int(entry.record_id) == int(new_record_id) for entry in reparsed.entries):
+        raise RuntimeError(f"Indexed record id rewrite to {new_record_id} did not reparse")
+    return bytes(patched)
+
+
 def _backup_path(path: Path, suffix: str) -> Path:
     candidate = path.with_name(f"{path.name}.{suffix}")
     if not candidate.exists():
@@ -521,13 +665,57 @@ def repair_stars_database(
     if not player_file.exists():
         raise RuntimeError(f"Player file not found: {player_file}")
 
+    warnings: list[str] = []
     roster = _resolve_stars_roster(team_file)
+    team_bytes = team_file.read_bytes()
+    team_indexed = _parse_indexed_fdi(team_bytes)
+    team_repair: dict[str, Any] = {
+        "old_eq_record_id": roster.eq_record_id,
+        "new_eq_record_id": roster.eq_record_id,
+        "changed": False,
+        "backup_path": None,
+        "applied_to_disk": False,
+        "reason": "already_safe_record_id",
+        "sha256": {
+            "input_team_file": _sha256(team_bytes),
+            "output_team_file": _sha256(team_bytes),
+        },
+    }
+    if int(roster.eq_record_id) == STARS_BROKEN_EQ_RECORD_ID:
+        repaired_team_bytes = _rewrite_indexed_record_id(
+            team_bytes,
+            team_indexed,
+            STARS_BROKEN_EQ_RECORD_ID,
+            STARS_SAFE_EQ_RECORD_ID,
+        )
+        team_repair.update(
+            {
+                "new_eq_record_id": STARS_SAFE_EQ_RECORD_ID,
+                "changed": True,
+                "reason": "moved_stars_off_runtime_special_0x26ac",
+                "sha256": {
+                    "input_team_file": _sha256(team_bytes),
+                    "output_team_file": _sha256(repaired_team_bytes),
+                },
+            }
+        )
+        if not dry_run:
+            team_backup = _backup_path(team_file, "skezmod-original")
+            if create_backup:
+                shutil.copy2(team_file, team_backup)
+                team_repair["backup_path"] = str(team_backup)
+            team_file.write_bytes(repaired_team_bytes)
+            team_repair["applied_to_disk"] = True
+    elif int(roster.eq_record_id) != STARS_SAFE_EQ_RECORD_ID:
+        warnings.append(
+            f"Stars roster record id is {roster.eq_record_id}; expected {STARS_BROKEN_EQ_RECORD_ID} or {STARS_SAFE_EQ_RECORD_ID}"
+        )
+
     player_bytes = player_file.read_bytes()
     indexed = _parse_indexed_fdi(player_bytes)
     entries_by_id = {entry.record_id: entry for entry in indexed.entries}
     patched_payload_by_id: dict[int, bytes] = {}
     changes: list[dict[str, Any]] = []
-    warnings: list[str] = []
 
     for row in roster.rows:
         entry = entries_by_id.get(row.player_record_id)
@@ -578,7 +766,9 @@ def repair_stars_database(
         "dbdat_dir": str(dbdat_dir),
         "team_file": str(team_file),
         "player_file": str(player_file),
-        "eq_record_id": roster.eq_record_id,
+        "eq_record_id": team_repair["new_eq_record_id"],
+        "eq_record_id_before": roster.eq_record_id,
+        "team_record_repair": team_repair,
         "team_name": roster.short_name,
         "full_club_name": roster.full_club_name,
         "slot_count": len(roster.rows),
@@ -598,10 +788,107 @@ def repair_stars_database(
         },
         "notes": [
             "Database repair is roster-driven: every player linked from the Stars EQ roster is checked.",
+            "The Stars EQ indexed record id is moved from 0x26AC/9900 to 9899 to avoid MANAGPRE's hard-coded special-club display branch.",
             "Short JUG payloads are extended with their existing decoded trailing filler byte.",
             "No player-specific Valderrama/Lalas hardcoding is used.",
         ],
     }
+
+
+def _write_formatter_s3_signing_fallback(
+    *,
+    input_bytes: bytes,
+    patched: bytearray,
+    rows: list[dict[str, Any]],
+    force: bool,
+) -> None:
+    site_off = _va_to_file_offset(input_bytes, FORMATTER_S3_SITE_VA)
+    trampoline = _build_trampoline(FORMATTER_S3_SITE_VA, FORMATTER_S3_STAGE0_VA, len(FORMATTER_S3_SITE_ORIGINAL))
+    current_site = bytes(patched[site_off:site_off + len(FORMATTER_S3_SITE_ORIGINAL)])
+    if current_site not in {FORMATTER_S3_SITE_ORIGINAL, trampoline} and not force:
+        raise RuntimeError("Signing formatter {S3} patch-site bytes do not match expected signature")
+
+    patched[site_off:site_off + len(FORMATTER_S3_SITE_ORIGINAL)] = trampoline
+    rows.append(
+        {
+            "name": "formatter_s3_signing_stars_fallback_FUN_00499D00",
+            "site_va": f"0x{FORMATTER_S3_SITE_VA:08X}",
+            "site_file_offset": f"0x{site_off:08X}",
+            "site_before": current_site.hex(),
+            "site_after": trampoline.hex(),
+            "bytes_written": len(FORMATTER_S3_SITE_ORIGINAL),
+            "purpose": "retained signing-news formatter fallback",
+        }
+    )
+
+    stars_bytes = b"Stars\x00"
+    stars_off = _va_to_file_offset(input_bytes, STARS_STRING_VA)
+    current_stars = bytes(patched[stars_off:stars_off + len(stars_bytes)])
+    if current_stars not in {b"\x00" * len(stars_bytes), stars_bytes} and not force:
+        raise RuntimeError("Stars string cave bytes are not empty/already patched")
+    patched[stars_off:stars_off + len(stars_bytes)] = stars_bytes
+    rows.append(
+        {
+            "name": "write_formatter_stars_literal",
+            "site_va": f"0x{STARS_STRING_VA:08X}",
+            "site_file_offset": f"0x{stars_off:08X}",
+            "site_before": current_stars.hex(),
+            "site_after": stars_bytes.hex(),
+            "bytes_written": len(stars_bytes),
+            "purpose": "retained signing-news formatter fallback",
+        }
+    )
+
+    stage0, stage1, stage2, extras = _build_formatter_s3_zero_team_stars_fallback()
+    old_team_lookup = _build_formatter_s3_team_lookup_stages()
+    old_valderrama = _build_formatter_s3_valderrama_stages()
+    stage_specs: tuple[tuple[str, int, int, bytes, tuple[bytes, ...]], ...] = (
+        (
+            "write_formatter_s3_stage0_cave",
+            FORMATTER_S3_STAGE0_VA,
+            FORMATTER_S3_STAGE0_SIZE,
+            stage0,
+            (old_team_lookup[0], old_valderrama[0]),
+        ),
+        (
+            "write_formatter_s3_stage1_cave",
+            FORMATTER_S3_STAGE1_VA,
+            FORMATTER_S3_STAGE1_SIZE,
+            stage1,
+            (old_team_lookup[1], old_valderrama[1]),
+        ),
+        (
+            "write_formatter_s3_stage2_cave",
+            FORMATTER_S3_STAGE2_VA,
+            FORMATTER_S3_STAGE2_SIZE,
+            stage2,
+            (old_team_lookup[2], old_valderrama[2]),
+        ),
+    ) + tuple((name, cave_va, cave_size, cave_code, ()) for name, cave_va, cave_size, cave_code in extras)
+
+    for name, cave_va, cave_size, cave_code, alternates in stage_specs:
+        if len(cave_code) > cave_size:
+            raise RuntimeError(f"{name} overflow ({len(cave_code)} > {cave_size})")
+        cave_blob = cave_code + (b"\xCC" * (cave_size - len(cave_code)))
+        cave_off = _va_to_file_offset(input_bytes, cave_va)
+        current_cave = bytes(patched[cave_off:cave_off + cave_size])
+        allowed_caves = {b"\xCC" * cave_size, b"\x00" * cave_size, cave_blob}
+        for old_code in alternates:
+            allowed_caves.add(old_code + (b"\xCC" * (cave_size - len(old_code))))
+        if current_cave not in allowed_caves and not force:
+            raise RuntimeError(f"{name} cave bytes are not recognized. Use --force only after manual verification.")
+        patched[cave_off:cave_off + cave_size] = cave_blob
+        rows.append(
+            {
+                "name": name,
+                "site_va": f"0x{cave_va:08X}",
+                "site_file_offset": f"0x{cave_off:08X}",
+                "site_before": current_cave.hex(),
+                "site_after": cave_blob.hex(),
+                "bytes_written": cave_size,
+                "purpose": "retained signing-news formatter fallback",
+            }
+        )
 
 
 def _apply_exe_cleanup_and_null_guard(*, input_exe: Path, output_exe: Path, dry_run: bool, force: bool) -> dict[str, Any]:
@@ -692,6 +979,13 @@ def _apply_exe_cleanup_and_null_guard(*, input_exe: Path, output_exe: Path, dry_
         }
     )
 
+    _write_formatter_s3_signing_fallback(
+        input_bytes=input_bytes,
+        patched=patched,
+        rows=rows,
+        force=force,
+    )
+
     output_bytes = bytes(patched)
     if not dry_run:
         output_exe.parent.mkdir(parents=True, exist_ok=True)
@@ -703,6 +997,7 @@ def _apply_exe_cleanup_and_null_guard(*, input_exe: Path, output_exe: Path, dry_
         and row.get("purpose") not in {
             "remove obsolete non-nullguard EXE hook",
             "remove obsolete non-nullguard cave bytes",
+            "retained signing-news formatter fallback",
         }
     ]
     return {
@@ -712,15 +1007,17 @@ def _apply_exe_cleanup_and_null_guard(*, input_exe: Path, output_exe: Path, dry_
         "patch_count": len(rows),
         "patches": rows,
         "retained_exe_patch": spec.name,
+        "retained_signing_formatter_patch": "formatter_s3_signing_stars_fallback_FUN_00499D00",
         "obsolete_hooks_removed": sum(1 for row in rows if row.get("purpose") == "remove obsolete non-nullguard EXE hook"),
         "obsolete_cave_ranges_cleared": sum(1 for row in rows if row.get("purpose") == "remove obsolete non-nullguard cave bytes"),
         "non_nullguard_hooks_remaining_in_plan": len(non_nullguard_hooks_remaining),
         "sha256": {"input": _sha256(input_bytes), "output": _sha256(output_bytes)},
         "notes": [
-            "EXE patch surface is intentionally reduced to the null guard only.",
-            "Known obsolete SkezMod fallback/formatter/profile/search hooks are restored if found.",
+            "EXE patch surface is intentionally reduced to the null guard plus the signing-news {S3} formatter fallback.",
+            "Known obsolete SkezMod lookup/search/profile hooks are restored if found.",
             "Known obsolete cave regions are reset to their original filler bytes if found.",
-            "Stars display/signing/search behaviour is expected to come from the repaired database, not EXE fallbacks.",
+            "Stars search/profile display behaviour is expected to come from the repaired database, not EXE fallbacks.",
+            "Signing-news text uses a formatter-local fallback because MANAGPRE event 0x453 can supply a null {S3} club argument after DB hydration has already happened.",
         ],
     }
 
@@ -745,14 +1042,14 @@ def apply_skezmod(
         db_report = repair_stars_database(dbdat_dir=dbdat_dir, dry_run=dry_run)
 
     return {
-        "patch_name": "skezmod-db-repair-nullguard",
+        "patch_name": "skezmod-db-repair-nullguard-signing-fallback",
         "dry_run": dry_run,
         "exe": exe_report,
         "database": db_report,
         "notes": [
-            "Complete Stars fix is DB-first: repair linked Stars roster player payloads in JUG98030.FDI.",
-            "Only EXE mutation retained is the FUN_0066F1F0 null text-pointer guard.",
-            "No Stars strings, player ids, signing formatter caves, or search/profile renderer caves are injected into MANAGPRE.EXE.",
+            "Stars display fix is DB-first: repair the linked Stars EQ roster id and linked JUG player payloads.",
+            "Retained EXE mutations are the FUN_0066F1F0 null text-pointer guard and the scoped signing-news {S3} formatter fallback.",
+            "No player ids or search/profile renderer caves are injected into MANAGPRE.EXE.",
         ],
     }
 
@@ -761,12 +1058,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run from the root of your Premier Manager 99 install directory. "
-            "Repairs the Stars database records and applies only the MANAGPRE null guard."
+            "Repairs the Stars database records and applies the scoped MANAGPRE "
+            "null guard plus signing-news formatter fallback."
         )
     )
     parser.add_argument("--dry-run", action="store_true", help="Validate and report only")
     parser.add_argument("--dbdat-dir", default=str(DEFAULT_DBDAT_DIR), help="Path to DBDAT directory, default: DBDAT")
-    parser.add_argument("--skip-db-repair", action="store_true", help="Only apply/validate the EXE null guard")
+    parser.add_argument(
+        "--skip-db-repair",
+        action="store_true",
+        help="Only apply/validate the EXE null guard and signing-news formatter fallback",
+    )
     parser.add_argument(
         "--no-branding",
         action="store_true",
