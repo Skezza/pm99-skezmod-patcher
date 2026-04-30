@@ -10,6 +10,7 @@ import {
 } from 'react';
 import './App.css';
 import { type CompatibilityResult, type PatchReport } from './lib/patchEngine';
+import type { StarsDatabaseRepairReport } from './lib/starsDbRepair';
 import type { WorkerRequest, WorkerResponse } from './lib/workerProtocol';
 import { extractExeIconUrl } from './lib/exeIcon';
 
@@ -48,6 +49,8 @@ function downloadFile(blob: Blob, fileName: string): void {
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const teamFileInputRef = useRef<HTMLInputElement | null>(null);
+  const playerFileInputRef = useRef<HTMLInputElement | null>(null);
   const requestIdRef = useRef(1);
   const pendingRef = useRef(
     new Map<
@@ -61,9 +64,14 @@ function App() {
 
   const [loadedFile, setLoadedFile] = useState<File | null>(null);
   const [loadedBytes, setLoadedBytes] = useState<ArrayBuffer | null>(null);
+  const [teamFile, setTeamFile] = useState<File | null>(null);
+  const [teamBytes, setTeamBytes] = useState<ArrayBuffer | null>(null);
+  const [playerFile, setPlayerFile] = useState<File | null>(null);
+  const [playerBytes, setPlayerBytes] = useState<ArrayBuffer | null>(null);
   const [loadedIconUrl, setLoadedIconUrl] = useState<string | null>(null);
   const [compatibility, setCompatibility] = useState<CompatibilityResult | null>(null);
   const [applyReport, setApplyReport] = useState<PatchReport | null>(null);
+  const [dbReport, setDbReport] = useState<StarsDatabaseRepairReport | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [statusText, setStatusText] = useState('');
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -198,7 +206,17 @@ function App() {
 
     return new Promise((resolve, reject) => {
       pendingRef.current.set(id, { resolve, reject });
-      worker.postMessage({ ...request, id }, [request.bytes]);
+      const transferables: Transferable[] = [request.bytes];
+      if (request.type === 'apply') {
+        const applyRequest = request as Omit<Extract<WorkerRequest, { type: 'apply' }>, 'id'>;
+        if (applyRequest.teamBytes) {
+          transferables.push(applyRequest.teamBytes);
+        }
+        if (applyRequest.playerBytes) {
+          transferables.push(applyRequest.playerBytes);
+        }
+      }
+      worker.postMessage({ ...request, id }, transferables);
     });
   }, []);
 
@@ -232,6 +250,7 @@ function App() {
     async (file: File) => {
       setLoadedFile(file);
       setApplyReport(null);
+      setDbReport(null);
       setCompatibility(null);
       setErrorText(null);
       setLoadedIconUrl(null);
@@ -260,6 +279,30 @@ function App() {
     }
 
     await loadFile(file);
+    event.target.value = '';
+  };
+
+  const onTeamFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setTeamFile(file);
+    setTeamBytes(await file.arrayBuffer());
+    setApplyReport(null);
+    setDbReport(null);
+    event.target.value = '';
+  };
+
+  const onPlayerFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setPlayerFile(file);
+    setPlayerBytes(await file.arrayBuffer());
+    setApplyReport(null);
+    setDbReport(null);
     event.target.value = '';
   };
 
@@ -317,16 +360,34 @@ function App() {
     setErrorText(null);
 
     try {
+      const includeDbRepair = teamFile && teamBytes && playerFile && playerBytes;
       const response = (await callWorker({
         type: 'apply',
         fileName: loadedFile.name,
         bytes: loadedBytes.slice(0),
+        ...(includeDbRepair
+          ? {
+              teamFileName: teamFile.name,
+              teamBytes: teamBytes.slice(0),
+              playerFileName: playerFile.name,
+              playerBytes: playerBytes.slice(0),
+            }
+          : {}),
       })) as ApplyResponse;
 
       const patchedBlob = new Blob([response.outputBytes], { type: 'application/octet-stream' });
       downloadFile(patchedBlob, 'MANAGPRE.skezmod.exe');
+      if (response.outputTeamBytes) {
+        downloadFile(new Blob([response.outputTeamBytes], { type: 'application/octet-stream' }), 'EQ98030.skezmod.FDI');
+      }
+      if (response.outputPlayerBytes) {
+        downloadFile(new Blob([response.outputPlayerBytes], { type: 'application/octet-stream' }), 'JUG98030.skezmod.FDI');
+      }
 
-      const reportBlob = new Blob([JSON.stringify(response.report, null, 2)], {
+      const reportPayload = response.dbReport
+        ? { exe: response.report, starsDatabaseRepair: response.dbReport }
+        : response.report;
+      const reportBlob = new Blob([JSON.stringify(reportPayload, null, 2)], {
         type: 'application/json',
       });
       if (reportUrl) {
@@ -335,6 +396,7 @@ function App() {
       setReportUrl(URL.createObjectURL(reportBlob));
 
       setApplyReport(response.report);
+      setDbReport(response.dbReport ?? null);
       void incrementPatchCount().catch(() => {
         setCounterStatus('error');
       });
@@ -460,7 +522,48 @@ function App() {
               <input type="checkbox" checked readOnly disabled />
               <span>Stars Patch RC2</span>
             </label>
+            <label>
+              <input type="checkbox" checked={Boolean(teamFile && playerFile)} readOnly disabled />
+              <span>Stars DB repair POC {teamFile && playerFile ? '(armed)' : '(optional)'}</span>
+            </label>
           </div>
+
+          <div className="db-file-grid" aria-label="Optional Stars database repair files">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => teamFileInputRef.current?.click()}
+              disabled={isLocked}
+            >
+              {teamFile ? `EQ: ${teamFile.name}` : 'Choose EQ98030.FDI'}
+            </button>
+            <input
+              ref={teamFileInputRef}
+              type="file"
+              accept=".fdi,.FDI"
+              hidden
+              onChange={onTeamFileInputChange}
+            />
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => playerFileInputRef.current?.click()}
+              disabled={isLocked}
+            >
+              {playerFile ? `JUG: ${playerFile.name}` : 'Choose JUG98030.FDI'}
+            </button>
+            <input
+              ref={playerFileInputRef}
+              type="file"
+              accept=".fdi,.FDI"
+              hidden
+              onChange={onPlayerFileInputChange}
+            />
+          </div>
+          <p className="option-note">
+            POC: if both database files are supplied, the browser also downloads repaired EQ/JUG files. If omitted,
+            only MANAGPRE.EXE is patched.
+          </p>
 
           <button
             type="button"
@@ -475,6 +578,12 @@ function App() {
             <a className="report-link" href={reportUrl} download="skezmod_report.json">
               Download patch report (JSON)
             </a>
+          ) : null}
+          {dbReport ? (
+            <p className="status-line">
+              DB repair: EQ {dbReport.eqRecordIdBefore} → {dbReport.eqRecordIdAfter}; {dbReport.changedPayloadCount}{' '}
+              linked player payloads padded.
+            </p>
           ) : null}
         </section>
 

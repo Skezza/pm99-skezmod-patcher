@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import { applySkezmodPatch, inspectCompatibility } from '../lib/patchEngine';
+import { repairStarsDatabase } from '../lib/starsDbRepair';
 import type { WorkerRequest, WorkerResponse } from '../lib/workerProtocol';
 
 const ctx: DedicatedWorkerGlobalScope = self as DedicatedWorkerGlobalScope;
@@ -51,6 +52,30 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>): Promise<void> => {
 
     const normalizedOutput = new Uint8Array(outputBytes);
     const transferable = normalizedOutput.buffer;
+    const transferables: Transferable[] = [transferable];
+
+    let dbReport;
+    let outputTeamBytes: ArrayBuffer | undefined;
+    let outputPlayerBytes: ArrayBuffer | undefined;
+    if (request.teamBytes && request.playerBytes && request.teamFileName && request.playerFileName) {
+      const dbResult = await repairStarsDatabase(
+        new Uint8Array(request.teamBytes),
+        new Uint8Array(request.playerBytes),
+        {
+          dryRun: false,
+          inputTeamFileName: request.teamFileName,
+          inputPlayerFileName: request.playerFileName,
+          outputTeamFileName: 'EQ98030.skezmod.FDI',
+          outputPlayerFileName: 'JUG98030.skezmod.FDI',
+        },
+      );
+      dbReport = dbResult.report;
+      const normalizedTeam = new Uint8Array(dbResult.outputTeamBytes);
+      const normalizedPlayer = new Uint8Array(dbResult.outputPlayerBytes);
+      outputTeamBytes = normalizedTeam.buffer;
+      outputPlayerBytes = normalizedPlayer.buffer;
+      transferables.push(outputTeamBytes, outputPlayerBytes);
+    }
 
     const response: WorkerResponse = {
       id: request.id,
@@ -58,9 +83,12 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>): Promise<void> => {
       compatibility,
       report,
       outputBytes: transferable,
+      dbReport,
+      outputTeamBytes,
+      outputPlayerBytes,
     };
 
-    ctx.postMessage(response, [transferable]);
+    ctx.postMessage(response, transferables);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown worker error';
     const response: WorkerResponse = {

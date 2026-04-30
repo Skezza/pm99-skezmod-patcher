@@ -1,4 +1,5 @@
 import type { CompatibilityResult, PatchReport } from './patchEngine';
+import type { StarsDatabaseRepairReport } from './starsDbRepair';
 
 export type WorkerRequest =
   | {
@@ -12,6 +13,10 @@ export type WorkerRequest =
       type: 'apply';
       fileName: string;
       bytes: ArrayBuffer;
+      teamFileName?: string;
+      teamBytes?: ArrayBuffer;
+      playerFileName?: string;
+      playerBytes?: ArrayBuffer;
     };
 
 export type WorkerResponse =
@@ -27,6 +32,9 @@ export type WorkerResponse =
       compatibility: CompatibilityResult;
       report: PatchReport;
       outputBytes: ArrayBuffer;
+      dbReport?: StarsDatabaseRepairReport;
+      outputTeamBytes?: ArrayBuffer;
+      outputPlayerBytes?: ArrayBuffer;
     }
   | {
       id: number;

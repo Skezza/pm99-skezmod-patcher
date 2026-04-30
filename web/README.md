@@ -29,6 +29,8 @@ npm run build
 
 - Runs entirely in browser (no backend upload required).
 - Applies the stable Stars Patch flow from `skezmod.py`.
+- POC branch: optionally accepts `EQ98030.FDI` and `JUG98030.FDI` and downloads repaired database files alongside the patched EXE.
+- The database repair moves the linked `Stars` EQ indexed record id from `9900`/`0x26AC` to `9899` and pads short linked `JUG` payloads to 80 bytes.
 - Performs signature-based compatibility preflight before apply.
 - Downloads `MANAGPRE.skezmod.exe` automatically on success.
 - Provides optional JSON patch report download.
@@ -37,4 +39,3 @@ npm run build
 ## Branding Asset
 
 - For the hero logo background, place your cover art at `web/public/keegan-cover.png`.
-
