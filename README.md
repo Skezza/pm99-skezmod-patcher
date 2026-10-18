@@ -25,6 +25,17 @@ Current runner proof covers the search-by-name hover/status strip and the player
 
 ## Why This Exists
 
+### Optional modern-season birth-year guard
+
+`player_birth_year_guard.py` exposes `patch_native_birth_year_guard(bytes)` for
+the season pipeline. The original indexed-player loader rejects birth years
+>=2000 and substitutes a generated age. The helper verifies the exact PE-mapped
+instruction sequence and changes only the two immediate bytes of the upper
+bound to 2101 (allowing birth years through 2100). It retains the 1900 lower
+bound, missing-date fallback and calendar code, produces before/after hashes,
+and is idempotent. A different instruction sequence is rejected. This is a
+separate optional helper, not an implicit change to `skezmod.py` defaults.
+
 The old approach patched multiple MANAGPRE formatter/search/profile paths so the game would display `Stars` when broken database records produced blank club strings. That worked for selected surfaces, but it was the wrong long-term shape: it scattered fallback behaviour through the EXE.
 
 The current approach repairs the database records so the game can resolve the linked `Stars` players normally for search/profile display, while retaining only the crash-prevention null guard and the signing-message formatter fallback that cannot be solved from the database path alone.
