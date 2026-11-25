@@ -1,3 +1,5 @@
+> **Archived.** This Python tool is kept for reference only (it documents the Stars database fix and two `MANAGPRE.EXE` safety guards). Development has moved to a new browser and native toolkit that is not public yet. This repository is read-only.
+
 # SkezMod Patcher for Premier Manager 99
 SkezMod Patcher is the worlds first (as far as I know) production patchset for x86 edition of Premier Manager Ninety Nine `MANAGPRE.EXE`.
 I'm looking to fix a few stability issues in the game and hopefully produce a fully functioning database editor in the future.
