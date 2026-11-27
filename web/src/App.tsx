@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import './App.css';
+import { StarsDatabase } from './StarsDatabase';
 import { type CompatibilityResult, type PatchReport } from './lib/patchEngine';
 import type { WorkerRequest, WorkerResponse } from './lib/workerProtocol';
 import { extractExeIconUrl } from './lib/exeIcon';
@@ -407,8 +408,10 @@ function App() {
           </p>
         </header>
 
+        <StarsDatabase />
+
         <section className="panel">
-          <h2>Load Binary</h2>
+          <h2>Legacy executable patch</h2>
             <div
             className={`drop-zone ${dragActive ? 'is-active' : ''} ${loadedFile ? 'has-file' : ''} ${isLocked ? 'is-busy' : ''}`}
             onDrop={onDrop}
@@ -454,13 +457,7 @@ function App() {
         </section>
 
         <section className="panel">
-          <h2>Apply SkezMod Patch 0.1</h2>
-          <div className="option-list" role="group" aria-label="Patch options">
-            <label>
-              <input type="checkbox" checked readOnly disabled />
-              <span>Stars Patch RC2</span>
-            </label>
-          </div>
+          <h2>Apply legacy executable patch</h2>
 
           <button
             type="button"
