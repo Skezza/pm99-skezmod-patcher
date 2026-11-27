@@ -1,52 +1,16 @@
-> **Archived.** This Python tool is kept for reference only (it documents the Stars database fix and two `MANAGPRE.EXE` safety guards). Development has moved to a new browser and native toolkit that is not public yet. This repository is read-only.
-
 # SkezMod Patcher for Premier Manager 99
-SkezMod Patcher is the worlds first (as far as I know) production patchset for x86 edition of Premier Manager Ninety Nine `MANAGPRE.EXE`.
-I'm looking to fix a few stability issues in the game and hopefully produce a fully functioning database editor in the future.
 
-<img width="256" height="384" alt="image" src="https://github.com/user-attachments/assets/d28b6e6c-35ab-48f0-b8a7-1004a84e7ed1" />
+SkezMod Patcher is a standalone browser tool for the English retail release. The page reads your club database locally and downloads a replacement.
 
+1. Open the hosted patcher, or serve the `web/` directory locally with `python3 -m http.server 8097 --bind 127.0.0.1 --directory web` and open [the local patcher](http://127.0.0.1:8097/).
+2. Select `DBDAT/EQ98030.FDI` from your game folder.
+3. Leave **Fix the Stars player crash** ticked to move the Stars club record from ID 9900 to 9899. The question-mark button explains the change. Untick the box to download your selected file unchanged.
+4. Back up the club database in your game folder before replacing it with the download.
 
-## v0.1
-`Stars Patch` -
-Hovering over **Carlos Valderrama** or **Alexi Lalas** causes the game to crash. This happens because 10 hidden players exist in the database with **Team ID 4705**, which doesn't exist. Their team name appears as "Stars" in the player database as leftover data from an earlier PC Futbol database.
+The Stars roster stays intact. The browser release leaves `MANAGPRE.EXE` and `JUG98030.FDI` untouched. It accepts the pinned stock database and the same database with the ID fix already applied. An unticked box leaves an already fixed input as supplied.
 
-<img width="320" height="240" alt="Screenshot from 2026-03-06 22-56-52" src="https://github.com/user-attachments/assets/90b292ab-c153-4382-8302-a2747284a570" />
-<img width="247" height="148" alt="Screenshot from 2026-03-07 00-27-53" src="https://github.com/user-attachments/assets/cf9dd1c0-eda9-4501-bdb8-f8d2332998b0" />
+The browser patcher is separate from the TextDB editor. The original Python patcher remains in the repository for users of the earlier release.
 
-When the game tries to access the missing team, it results in a **null pointer dereference**, triggering the "Application cannot continue" crash.
+## Verification
 
-This patch adds **null protection with a Team ID fallback lookup table** via a code cave, preventing the crash and patching most string references. The fallback covers 'Stars', Free players that trigger the same crash (not sure why), and "Unknown Club". The patch is comprehensive, you can access the players for transfer and sign them. 
-
-<img width="320" height="240" alt="Screenshot from 2026-03-08 23-30-19" src="https://github.com/user-attachments/assets/9c31ccef-fd2e-452d-9cd4-1fe593b6f680" />
-
-Patch consists of:
-- Null-check at `0x0066F1FB` protecting the `0x0066F208` dereference path.
-- Tail hook at `0x004B5C76` in `FUN_004B5C20`.
-- Fallback lookup table for unresolved team IDs:
-  - `0` -> `Unknown club`
-  - `4705` -> `Stars`
-  - `4706` -> `Free players`
-- (Optional) Lightweight branding text update to `PM99 SkezMod 0.1`.
-
-## To Use
-Copy into your Premier Manager 99 install directory and execute skezmod.py.
-
-Validate with `--dry-run` first.
-
-Write JSON report:
-
-```bash
---json-output /tmp/skezmod_report.json
-```
-
-## Optional
-
-Skip branding, just apply patch?:
-
-```bash
- --no-branding
-```
-
-## Release Notes
-See: `docs/releases/v0.1.0.md`
+Run `node --test web/test/stars.test.cjs`. Set `SKEZMOD_TEST_EQ` to your own stock EQ file to run the retail byte comparison. No game files are distributed with this repository.

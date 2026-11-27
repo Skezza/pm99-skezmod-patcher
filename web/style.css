@@ -1,0 +1,25 @@
+:root {
+  color-scheme: dark;
+  font: 17px/1.55 system-ui, sans-serif;
+  color: #f0f4ec;
+  background: #101910;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: clamp(1rem, 6vw, 5rem); }
+main { max-width: 39rem; margin: auto; }
+.edition { color: #c0d7ad; margin: 0; }
+h1 { font-size: clamp(2.25rem, 8vw, 4rem); letter-spacing: -.055em; line-height: 1; margin: .35em 0 .7em; }
+form { background: #1b281b; border: 1px solid #475c44; padding: clamp(1rem, 5vw, 2rem); border-radius: 1rem; }
+label { font-weight: 650; }
+#file-hint, .install { color: #c5d3c2; }
+input, button { font: inherit; }
+input[type=file] { display: block; max-width: 100%; }
+.option { display: flex; align-items: baseline; flex-wrap: wrap; gap: .55rem; margin: 1.6rem 0; }
+input[type=checkbox] { accent-color: #b9ec83; }
+summary { cursor: pointer; color: #c8f4a2; }
+details p { margin-block: .35rem 0; }
+button { padding: .65rem 1rem; background: #c4f192; color: #182217; border: 0; border-radius: .4rem; font-weight: 700; cursor: pointer; }
+button:disabled { opacity: .7; }
+:focus-visible { outline: 2px solid #eefecf; outline-offset: 3px; }
+#status:empty { display: none; }
+#status { margin-bottom: 0; }

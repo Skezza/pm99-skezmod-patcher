@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; form-action 'none'; base-uri 'none'">
+  <title>SkezMod Patcher</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="stars.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="edition">Premier Manager 99 · English retail</p>
+      <h1>SkezMod Patcher</h1>
+    </header>
+    <form>
+      <label class="file-label" for="database">Choose your club database</label>
+      <p id="file-hint">Select <code>DBDAT/EQ98030.FDI</code> from your game folder. The file stays in your browser.</p>
+      <input id="database" type="file" accept=".fdi" aria-describedby="file-hint" required>
+      <div class="option">
+        <label><input id="stars" type="checkbox" checked aria-describedby="stars-help"> Fix the Stars player crash</label>
+        <details>
+          <summary aria-label="How the Stars fix works" title="Moves the Stars club record from database ID 9900 to 9899.">?</summary>
+          <p id="stars-help">Moves the Stars club record from ID 9900 to 9899 so the game uses its normal club-name lookup. The same players stay on Stars. The executable is untouched.</p>
+        </details>
+      </div>
+      <button type="submit">Download club database</button>
+      <p id="status" role="status"></p>
+    </form>
+    <p class="install">Back up your original <code>EQ98030.FDI</code>, then put the downloaded file in the game's <code>DBDAT</code> folder.</p>
+  </main>
+</body>
+</html>
