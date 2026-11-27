@@ -7,7 +7,6 @@ import { pickPackage } from './package.js';
 const $ = (id) => document.getElementById(id);
 const els = {
   dropzone: $('dropzone'),
-  pickFolder: $('pick-folder'),
   pickFiles: $('pick-files'),
   folderInput: $('folder-input'),
   filesInput: $('files-input'),
@@ -100,6 +99,7 @@ function patchJob(mode) {
         url = URL.createObjectURL(data.zip);
         save.href = url;
         save.hidden = false;
+        if (mode === 'play') save.click();
         status.textContent = mode === 'export'
           ? `${data.paths.length} files ready. The rebuild matched the stock hashes.`
           : `Ready to download: ${data.paths.join(', ')}.`;
@@ -247,6 +247,8 @@ async function handleFiles(list) {
   setProgress(null, 'Check finished.');
   renderChecklist(rows, summary);
   renderVerdict(verdict);
+  els.dropzone.classList.toggle('has-file', summary.canBuild);
+  $('dropzone-help').textContent = summary.canBuild ? 'English retail game files loaded' : 'Drop your game folder here';
   if (summary.canBuild) {
     const entries = rows.filter(({ status }) => status === 'match').map(({ id, path }) => ({ path, file: picked.get(id) }));
     exportJob(entries);
@@ -291,7 +293,7 @@ async function walkEntry(entry) {
 function wire() {
   setProgress(null, '');
 
-  els.pickFolder.addEventListener('click', () => els.folderInput.click());
+  els.dropzone.addEventListener('click', () => els.folderInput.click());
   els.pickFiles.addEventListener('click', () => els.filesInput.click());
   // Copy the list, then reset the input so choosing the same folder again fires "change".
   const onPick = (e) => {
@@ -347,11 +349,11 @@ function wire() {
   for (const type of ['dragenter', 'dragover']) {
     els.dropzone.addEventListener(type, (e) => {
       e.preventDefault();
-      els.dropzone.classList.add('dropzone--active');
+      els.dropzone.classList.add('is-active');
     });
   }
   for (const type of ['dragleave', 'drop']) {
-    els.dropzone.addEventListener(type, () => els.dropzone.classList.remove('dropzone--active'));
+    els.dropzone.addEventListener(type, () => els.dropzone.classList.remove('is-active'));
   }
   els.dropzone.addEventListener('drop', async (e) => {
     e.preventDefault();

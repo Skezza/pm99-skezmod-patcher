@@ -43,6 +43,8 @@ jobs:
           (cd textdb/assets && sha256sum -c SHA256SUMS)
           mkdir -p dist/assets
           cp -r textdb/index.html textdb/styles.css textdb/*.png textdb/src dist/
+          tail -n +3 src/index.css > dist/legacy-base.css
+          cp src/App.css dist/legacy-layout.css
           cp textdb/assets/pm99-core.{js,wasm} dist/assets/
 
       - name: Configure GitHub Pages

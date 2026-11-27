@@ -1,7 +1,7 @@
 # SkezMod Patcher browser build
 
 This interface uses the TextDB browser modules and WebAssembly engine from
-Skezza/pm99-textdb at 668519a4c2fe5df5052fea9c5b48e20189280914. The engine in `assets/` was built with Emscripten 4.0.10 using TextDB’s `make web-core` target. The Pages build checks both asset hashes before publishing. For a local preview, serve this directory on localhost.
+Skezza/pm99-textdb at 668519a4c2fe5df5052fea9c5b48e20189280914. The engine in `assets/` was built with Emscripten 4.0.10 using TextDB’s `make web-core` target. The Pages build checks both asset hashes before publishing. For a local preview, assemble the static site with the commands in the Pages workflow and serve the resulting dist directory on localhost.
 Run `npm test` for the browser module tests.
 
 Choose the English retail installation files to build a game update directly

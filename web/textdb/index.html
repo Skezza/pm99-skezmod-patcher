@@ -9,48 +9,59 @@
     />
     <meta name="description" content="Export editable Premier Manager 99 tables and rebuild game files in your browser." />
     <title>SkezMod Patcher</title>
+    <link rel="stylesheet" href="legacy-base.css" />
+    <link rel="stylesheet" href="legacy-layout.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <a class="skip-link" href="#step-1">Skip to the first step</a>
+    <main class="app-shell">
+      <section class="app-card" aria-label="SkezMod Patcher">
+        <header class="hero">
+          <p class="eyebrow">Unofficial Premier Manager Ninety Nine Production Patchset</p>
+          <div class="logo-lockup" role="img" aria-label="Premier Manager Ninety Nine SkezMod">
+            <div class="logo-cover"></div>
+            <div class="logo-copy"><img class="logo-tag-image" src="skezmod-logo-cut.png" alt=""></div>
+          </div>
+          <p class="hero-sub">Patch your English retail game. Your files stay in your browser.</p>
+        </header>
 
-    <header class="site-header">
-      <div class="brand-banner"><img src="skezmod-logo-cut.png" alt="" width="200"></div>
-      <p class="edition">Premier Manager 99 · English retail</p>
-      <h1>SkezMod Patcher</h1>
-      <p class="lede">
-        Patch your English retail game. Your files stay in your browser.
-      </p>
-    </header>
-
-    <main>
-      <section id="step-1" class="card" aria-labelledby="step-1-title">
-        <h2 id="step-1-title">Build a game update</h2>
-        <div id="dropzone" class="dropzone" role="button" aria-label="Drop your game folder here or press Enter to choose a folder" tabindex="0" aria-describedby="dropzone-help">
-          <p id="dropzone-help">Drop your game folder here or choose it below.</p>
-          <button type="button" id="pick-folder" class="button button--ghost">Choose game folder</button>
-          <button type="button" id="pick-files" class="button button--ghost">Choose individual files</button>
+        <section class="panel">
+          <h2>Load Game Files</h2>
+          <div id="dropzone" class="drop-zone" role="button" aria-label="Drop your game folder or click to choose it" tabindex="0">
+            <div class="drop-zone-content empty">
+              <div class="drop-zone-copy">
+                <p id="dropzone-help" class="drop-zone-title">Drop your game folder here</p>
+                <p class="drop-zone-meta">or click to choose it</p>
+              </div>
+            </div>
+          </div>
+          <button type="button" id="pick-files" class="text-button">Choose individual files</button>
           <input id="folder-input" type="file" webkitdirectory directory hidden />
           <input id="files-input" type="file" multiple hidden />
-        </div>
+        </section>
 
+        <section class="panel">
+          <h2>Apply SkezMod Patch</h2>
+          <div class="option-list">
+            <label title="Moves the Stars club record from database ID 9900 to 9899."><input type="checkbox" id="fix-stars" checked> Fix the Stars player crash</label>
+            <details>
+              <summary>Rendering files</summary>
+              <p><label for="render-files">Add a compatible 32-bit <code>ddraw.dll</code> and optional <code>ddraw.ini</code> or <code>dgVoodoo.conf</code>.</label></p>
+              <input type="file" id="render-files" multiple accept=".dll,.ini,.conf">
+              <button type="button" id="clear-render-files" class="secondary" hidden>Clear rendering files</button>
+            </details>
+            <p id="render-status" class="status-line" role="status"></p>
+          </div>
+          <button type="button" id="play-package" class="primary" disabled>Apply</button>
+        </section>
+
+        <section class="panel diagnostics">
         <progress id="hash-progress" max="1" value="0" hidden aria-label="Checking files"></progress>
         <p id="hash-status" class="summary" aria-live="polite"></p>
         <div id="verdict" class="verdict verdict--neutral" aria-live="polite" hidden></div>
 
-        <div class="build-options">
-          <label title="Moves the Stars club record from database ID 9900 to 9899."><input type="checkbox" id="fix-stars" checked> Fix the Stars player crash</label>
-          <details class="details">
-            <summary>Rendering files</summary>
-            <label for="render-files">Add a compatible 32-bit <code>ddraw.dll</code> and optional <code>ddraw.ini</code> or <code>dgVoodoo.conf</code>.</label>
-            <input type="file" id="render-files" multiple accept=".dll,.ini,.conf">
-            <button type="button" id="clear-render-files" class="button button--ghost" hidden>Clear rendering files</button>
-          </details>
-          <p id="render-status" class="summary" role="status"></p>
-        </div>
-        <button type="button" id="play-package" class="button" disabled>Build game update</button>
         <p id="play-status" class="result" role="status"></p>
-        <a id="play-save" class="button button--ghost" hidden download="skezmod-game-update.zip">Download game update ZIP</a>
+        <a id="play-save" class="report-link" hidden download="skezmod-game-update.zip">Download game update ZIP</a>
         <details id="play-details" class="details" hidden><summary>Build report</summary><pre class="patch-log"></pre></details>
 
         <details class="details secondary-tools">
@@ -64,32 +75,32 @@
               <tbody id="checklist-body"></tbody>
             </table>
           </div>
-          <button type="button" id="pick-cd-file" class="button button--ghost">Add FECHCONV.30 from CD</button>
-          <button type="button" id="remove-cd-file" class="button button--ghost" hidden>Remove CD file</button>
+          <button type="button" id="pick-cd-file" class="secondary">Add FECHCONV.30 from CD</button>
+          <button type="button" id="remove-cd-file" class="secondary" hidden>Remove CD file</button>
           <input id="cd-input" type="file" hidden />
         </details>
 
         <details class="details secondary-tools">
           <summary>TextDB editing tools</summary>
           <p>Export the editable tables as a ZIP. To build from your edits, select the extracted folder containing <code>textdb.ini</code> and <code>TEXTDB</code>.</p>
-          <button type="button" id="export-package" class="button button--ghost" disabled>Export tables</button>
+          <button type="button" id="export-package" class="secondary" disabled>Export tables</button>
           <p id="export-status" class="result" role="status"></p>
-          <a id="export-save" class="button button--ghost" hidden download="pm99-textdb-package.zip">Download editable tables ZIP</a>
+          <a id="export-save" class="report-link" hidden download="pm99-textdb-package.zip">Download editable tables ZIP</a>
           <details id="export-details" class="details" hidden><summary>Export report</summary><pre class="patch-log"></pre></details>
-          <button type="button" id="pick-package" class="button button--ghost">Choose package folder</button>
+          <button type="button" id="pick-package" class="secondary">Choose package folder</button>
           <input id="package-input" type="file" webkitdirectory directory hidden />
-          <button type="button" id="build-package" class="button button--ghost" disabled>Rebuild files</button>
+          <button type="button" id="build-package" class="secondary" disabled>Rebuild files</button>
           <p id="build-status" class="result" role="status"></p>
-          <a id="build-save" class="button button--ghost" hidden download="pm99-rebuilt-files.zip">Download rebuilt game update ZIP</a>
+          <a id="build-save" class="report-link" hidden download="pm99-rebuilt-files.zip">Download rebuilt game update ZIP</a>
           <details id="build-details" class="details" hidden><summary>Build report</summary><pre class="patch-log"></pre></details>
           <p class="note">Back up the game folder before copying in rebuilt files. Calendar edits require the TextDB helper.</p>
         </details>
+        </section>
+        <footer class="app-footer">
+          <a href="https://github.com/Skezza/pm99-skezmod-patcher">Offline Patcher? · Source on GitHub</a>
+        </footer>
       </section>
     </main>
-
-    <footer class="site-footer">
-      <p>Back up your game folder before installing an update.</p>
-    </footer>
 
     <script type="module" src="src/main.js"></script>
   </body>
