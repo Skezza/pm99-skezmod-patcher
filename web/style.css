@@ -1,25 +1,110 @@
 :root {
-  color-scheme: dark;
-  font: 17px/1.55 system-ui, sans-serif;
-  color: #f0f4ec;
-  background: #101910;
+  --ink-900: #122138;
+  --ink-800: #1f2e4d;
+  --ink-700: #2f456f;
+  --ink-100: #eef4ff;
+  --ink-300: #b8c6df;
+  --gold-500: #dca84a;
+  --gold-400: #f4c766;
+  --line: rgba(255, 255, 255, 0.14);
+  --danger: #ffd4d0;
 }
-* { box-sizing: border-box; }
-body { margin: 0; padding: clamp(1rem, 6vw, 5rem); }
-main { max-width: 39rem; margin: auto; }
-.edition { color: #c0d7ad; margin: 0; }
-h1 { font-size: clamp(2.25rem, 8vw, 4rem); letter-spacing: -.055em; line-height: 1; margin: .35em 0 .7em; }
-form { background: #1b281b; border: 1px solid #475c44; padding: clamp(1rem, 5vw, 2rem); border-radius: 1rem; }
-label { font-weight: 650; }
-#file-hint, .install { color: #c5d3c2; }
-input, button { font: inherit; }
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: 'Manrope', 'Segoe UI', Tahoma, sans-serif;
+  color: var(--ink-100);
+  background:
+    radial-gradient(1400px 800px at 20% -20%, #2f5689 0%, transparent 65%),
+    radial-gradient(1200px 640px at 110% 120%, #6d4f2d 0%, transparent 60%),
+    linear-gradient(180deg, #203355 0%, #0f1b2f 60%, #091224 100%);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(transparent 95%, rgba(255, 255, 255, 0.03) 100%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+  opacity: 0.7;
+}
+
+a {
+  color: var(--gold-400);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+:root { color-scheme: dark; }
+body { min-height: 100vh; padding: clamp(.75rem, 4vw, 2rem); }
+.app-card {
+  position: relative;
+  width: min(100%, 980px);
+  margin: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(27, 43, 72, .9), rgba(10, 17, 31, .9));
+  box-shadow: 0 20px 55px rgba(0, 0, 0, .35);
+}
+.hero, form, .install { padding: 1.4rem; }
+.hero {
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(130deg, rgba(16, 30, 53, .82), rgba(66, 38, 20, .58));
+}
+.edition { margin: 0 0 .55rem; text-transform: uppercase; letter-spacing: .12em; font-size: .74rem; color: var(--ink-300); }
+.logo-lockup {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  min-height: clamp(155px, 22vw, 260px);
+  padding: .4rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(rgba(8, 14, 27, .38), rgba(8, 14, 27, .75)),
+    url('keegan-cover-cropped.png') center 76% / cover;
+}
+.logo-lockup img {
+  width: clamp(125px, 25vw, 225px);
+  height: auto;
+  transform: rotate(-2deg);
+  filter: drop-shadow(0 3px 9px rgba(0, 0, 0, .45));
+}
+h1 { margin: .65rem 0 0; color: var(--gold-400); font-size: clamp(1.55rem, 5vw, 2.55rem); line-height: 1.1; }
+label { font-weight: 700; }
+#file-hint, .install { color: var(--ink-300); }
 input[type=file] { display: block; max-width: 100%; }
 .option { display: flex; align-items: baseline; flex-wrap: wrap; gap: .55rem; margin: 1.6rem 0; }
-input[type=checkbox] { accent-color: #b9ec83; }
-summary { cursor: pointer; color: #c8f4a2; }
+input[type=checkbox] { accent-color: var(--gold-400); }
+summary { cursor: pointer; color: var(--gold-400); }
 details p { margin-block: .35rem 0; }
-button { padding: .65rem 1rem; background: #c4f192; color: #182217; border: 0; border-radius: .4rem; font-weight: 700; cursor: pointer; }
+button {
+  padding: .65rem 1rem;
+  background: linear-gradient(135deg, var(--gold-400), var(--gold-500));
+  color: var(--ink-900);
+  border: 0;
+  border-radius: .5rem;
+  font-weight: 700;
+  cursor: pointer;
+}
 button:disabled { opacity: .7; }
-:focus-visible { outline: 2px solid #eefecf; outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--gold-400); outline-offset: 3px; }
+.install { margin: 0; border-top: 1px solid var(--line); }
 #status:empty { display: none; }
 #status { margin-bottom: 0; }
