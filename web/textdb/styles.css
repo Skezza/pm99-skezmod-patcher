@@ -226,7 +226,7 @@ th { color: var(--gold); font-weight: 700; }
 .brand-banner {
   display: flex;
   justify-content: flex-end;
-  min-height: clamp(140px, 26vw, 245px);
+  min-height: clamp(104px, 17vw, 175px);
   max-width: 950px;
   margin: 0 auto 1.5rem;
   padding: .6rem 1.2rem;
@@ -237,5 +237,9 @@ th { color: var(--gold); font-weight: 700; }
 }
 .brand-banner img { width: clamp(125px, 24vw, 200px); height: fit-content; transform: rotate(-2deg); }
 .edition { color: var(--gold); letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; }
-#options-title ~ label, #render-files { display: block; }
+.build-options { margin: 16px 0; }
+.build-options .details { margin-top: 6px; }
+.build-options .details label, #render-files { display: block; margin-top: 8px; }
+.secondary-tools { border-top: 1px solid var(--line); padding-top: 12px; }
+.summary:empty, .result:empty { display: none; }
 input[type=checkbox] { accent-color: var(--gold); }

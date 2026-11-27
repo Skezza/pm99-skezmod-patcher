@@ -1,5 +1,5 @@
 // Page wiring. The worker reads selected files locally.
-import { MANIFEST, captureEntries } from './manifest.js';
+import { captureEntries } from './manifest.js';
 import { checkFiles, pickWanted, summarise, verdictFor } from './verify.js';
 import { pickRenderingFiles } from './rendering.js';
 import { pickPackage } from './package.js';
@@ -18,8 +18,6 @@ const els = {
   checklist: $('checklist'),
   checklistBody: $('checklist-body'),
   countLine: $('capture-count'),
-  derivedList: $('derived-list'),
-  oosList: $('oos-list'),
   fixStars: $('fix-stars'),
 };
 
@@ -135,23 +133,6 @@ function patchJob(mode) {
 
 // ---- rendering -------------------------------------------------------------------
 
-function renderStaticLists() {
-  for (const e of MANIFEST.filter((x) => x.kind === 'derived')) {
-    const li = document.createElement('li');
-    const code = document.createElement('code');
-    code.textContent = e.path;
-    li.append(code, document.createTextNode(` (${e.role}). ${e.source}`));
-    els.derivedList.append(li);
-  }
-  for (const e of MANIFEST.filter((x) => x.kind === 'out-of-scope')) {
-    const li = document.createElement('li');
-    const code = document.createElement('code');
-    code.textContent = e.path;
-    li.append(code, document.createTextNode(` ${e.role}: not captured, out of scope.`));
-    els.oosList.append(li);
-  }
-}
-
 function renderChecklist(rows, summary) {
   els.checklistBody.replaceChildren();
   for (const r of rows) {
@@ -239,6 +220,7 @@ async function handleFiles(list) {
   els.checklist.hidden = true;
   els.checklistBody.replaceChildren();
   els.countLine.textContent = '';
+  els.verdict.hidden = false;
   els.verdict.className = 'verdict verdict--neutral';
   els.verdict.replaceChildren();
   const checking = document.createElement('p');
@@ -307,7 +289,6 @@ async function walkEntry(entry) {
 // ---- wiring ------------------------------------------------------------------------
 
 function wire() {
-  renderStaticLists();
   setProgress(null, '');
 
   els.pickFolder.addEventListener('click', () => els.folderInput.click());

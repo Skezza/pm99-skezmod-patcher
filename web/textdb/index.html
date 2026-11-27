@@ -19,120 +19,76 @@
       <p class="edition">Premier Manager 99 · English retail</p>
       <h1>SkezMod Patcher</h1>
       <p class="lede">
-        Build a game update or export TextDB tables to customise your season. Your files stay in your browser.
+        Patch your English retail game. Your files stay in your browser.
       </p>
     </header>
 
     <main>
       <section id="step-1" class="card" aria-labelledby="step-1-title">
-        <h2 id="step-1-title"><span class="step-no">1</span> Choose your game files</h2>
-        <p>
-          Choose the game folder you installed from, or drag it onto the box. The tool reads
-          only the files in step 2's checklist. Other files in the folder are ignored.
-        </p>
-
-        <div id="dropzone" class="dropzone" role="button" aria-label="Drop your game folder here, or press Enter to choose a folder" tabindex="0" aria-describedby="dropzone-help">
-          <p id="dropzone-help">Drop your game folder here, or use a button below.</p>
-          <button type="button" id="pick-folder" class="button">Choose game folder</button>
+        <h2 id="step-1-title">Build a game update</h2>
+        <div id="dropzone" class="dropzone" role="button" aria-label="Drop your game folder here or press Enter to choose a folder" tabindex="0" aria-describedby="dropzone-help">
+          <p id="dropzone-help">Drop your game folder here or choose it below.</p>
+          <button type="button" id="pick-folder" class="button button--ghost">Choose game folder</button>
           <button type="button" id="pick-files" class="button button--ghost">Choose individual files</button>
           <input id="folder-input" type="file" webkitdirectory directory hidden />
           <input id="files-input" type="file" multiple hidden />
         </div>
 
-        <button type="button" id="pick-cd-file" class="button button--ghost">Add optional FECHCONV.30 from CD</button>
-        <button type="button" id="remove-cd-file" class="button button--ghost" hidden>Remove CD file</button>
-        <input id="cd-input" type="file" hidden />
-        <p class="note">Files are read by this page only. Nothing is sent to a server.</p>
-        <p id="selection-summary" class="summary" aria-live="polite"></p>
-      </section>
-
-      <section id="step-2" class="card" aria-labelledby="step-2-title">
-        <h2 id="step-2-title"><span class="step-no">2</span> Check the edition</h2>
-        <p>
-          Each file is fingerprinted (SHA-256) in your browser and compared with the original
-          English retail files. Only that edition is supported. A chosen file that is the wrong size or does not match
-          means this edition is refused and step 3 stays off.
-        </p>
-
         <progress id="hash-progress" max="1" value="0" hidden aria-label="Checking files"></progress>
         <p id="hash-status" class="summary" aria-live="polite"></p>
+        <div id="verdict" class="verdict verdict--neutral" aria-live="polite" hidden></div>
 
-        <div id="verdict" class="verdict verdict--neutral" aria-live="polite">
-          <p class="verdict__title">No game files chosen yet</p>
-          <p class="verdict__message">Choose your game folder to start the check.</p>
+        <div class="build-options">
+          <label title="Moves the Stars club record from database ID 9900 to 9899."><input type="checkbox" id="fix-stars" checked> Fix the Stars player crash</label>
+          <details class="details">
+            <summary>Rendering files</summary>
+            <label for="render-files">Add a compatible 32-bit <code>ddraw.dll</code> and optional <code>ddraw.ini</code> or <code>dgVoodoo.conf</code>.</label>
+            <input type="file" id="render-files" multiple accept=".dll,.ini,.conf">
+            <button type="button" id="clear-render-files" class="button button--ghost" hidden>Clear rendering files</button>
+          </details>
+          <p id="render-status" class="summary" role="status"></p>
         </div>
-
-        <p id="capture-count" class="count" aria-live="polite"></p>
-
-        <div class="table-wrap">
-          <table id="checklist" hidden>
-            <caption class="visually-hidden">Checklist of files to capture, from the manifest</caption>
-            <thead>
-              <tr>
-                <th scope="col">File (in the game folder)</th>
-                <th scope="col">Result</th>
-                <th scope="col">What it is</th>
-                <th scope="col">Fingerprint (first 12 characters)</th>
-              </tr>
-            </thead>
-            <tbody id="checklist-body"></tbody>
-          </table>
-        </div>
-
-        <details class="details">
-          <summary>Generated during the build (not captured)</summary>
-          <p>The patcher derives these from your game files or tables.</p>
-          <ul id="derived-list"></ul>
-        </details>
-
-        <details class="details">
-          <summary>Not captured: out of scope for now</summary>
-          <p>Photos, club art, flags, music and other archives. The text-table patcher does not read them.</p>
-          <ul id="oos-list"></ul>
-        </details>
-      </section>
-
-      <section class="card" aria-labelledby="options-title">
-        <h2 id="options-title">Game update options</h2>
-        <p><label title="Moves the Stars club record from database ID 9900 to 9899."><input type="checkbox" id="fix-stars" checked> Fix the Stars player crash</label></p>
-        <details class="details"><summary>How the Stars fix works</summary><p>Moves the Stars club record from ID 9900 to 9899. The players stay on Stars, and the game executable stays untouched.</p></details>
-        <label for="render-files">Add rendering fix files (optional)</label>
-        <input type="file" id="render-files" multiple accept=".dll,.ini,.conf">
-        <button type="button" id="clear-render-files" class="button button--ghost" hidden>Clear rendering files</button>
-        <p class="note">Include a compatible 32-bit <code>ddraw.dll</code> and its optional <code>ddraw.ini</code> or <code>dgVoodoo.conf</code>. Use files from a rendering fix you trust for this game.</p>
-        <p id="render-status" role="status"></p>
         <button type="button" id="play-package" class="button" disabled>Build game update</button>
         <p id="play-status" class="result" role="status"></p>
         <a id="play-save" class="button button--ghost" hidden download="skezmod-game-update.zip">Download game update ZIP</a>
         <details id="play-details" class="details" hidden><summary>Build report</summary><pre class="patch-log"></pre></details>
-      </section>
 
-      <section id="step-3" class="card" aria-labelledby="step-3-title">
-        <h2 id="step-3-title">Export editable tables</h2>
-        <p>Once the edition check passes, export a ZIP containing <code>textdb.ini</code> and <code>TEXTDB</code>.
-          The patcher rebuilds and checks the game files before offering the download. Extract the ZIP and edit the TSV files in a plain text editor.</p>
-        <button type="button" id="export-package" class="button" disabled>Export tables</button>
-        <p id="export-status" class="result" role="status"></p>
-        <a id="export-save" class="button button--ghost" hidden download="pm99-textdb-package.zip">Download editable tables ZIP</a>
-        <details id="export-details" class="details" hidden><summary>Export report</summary><pre class="patch-log"></pre></details>
-      </section>
+        <details class="details secondary-tools">
+          <summary>Game file checks</summary>
+          <p id="selection-summary" class="summary" aria-live="polite"></p>
+          <p id="capture-count" class="count" aria-live="polite"></p>
+          <div class="table-wrap">
+            <table id="checklist" hidden>
+              <caption class="visually-hidden">English retail game file checks</caption>
+              <thead><tr><th scope="col">File</th><th scope="col">Result</th><th scope="col">Purpose</th><th scope="col">Fingerprint</th></tr></thead>
+              <tbody id="checklist-body"></tbody>
+            </table>
+          </div>
+          <button type="button" id="pick-cd-file" class="button button--ghost">Add FECHCONV.30 from CD</button>
+          <button type="button" id="remove-cd-file" class="button button--ghost" hidden>Remove CD file</button>
+          <input id="cd-input" type="file" hidden />
+        </details>
 
-      <section id="rebuild" class="card" aria-labelledby="rebuild-title">
-        <h2 id="rebuild-title">Rebuild game files</h2>
-        <p>Choose the extracted package folder that contains <code>textdb.ini</code> and <code>TEXTDB</code>. The patcher checks the tables and builds a new ZIP using your game update options above.</p>
-        <button type="button" id="pick-package" class="button button--ghost">Choose package folder</button>
-        <input id="package-input" type="file" webkitdirectory directory hidden />
-        <button type="button" id="build-package" class="button" disabled>Rebuild files</button>
-        <p id="build-status" class="result" role="status"></p>
-        <a id="build-save" class="button button--ghost" hidden download="pm99-rebuilt-files.zip">Download rebuilt game update ZIP</a>
-        <details id="build-details" class="details" hidden><summary>Build report</summary><pre class="patch-log"></pre></details>
-        <p class="note">Keep a backup before copying replacements into the game. Direct installation of rebuilt files is experimental. Calendar edits require the helper.</p>
+        <details class="details secondary-tools">
+          <summary>TextDB editing tools</summary>
+          <p>Export the editable tables as a ZIP. To build from your edits, select the extracted folder containing <code>textdb.ini</code> and <code>TEXTDB</code>.</p>
+          <button type="button" id="export-package" class="button button--ghost" disabled>Export tables</button>
+          <p id="export-status" class="result" role="status"></p>
+          <a id="export-save" class="button button--ghost" hidden download="pm99-textdb-package.zip">Download editable tables ZIP</a>
+          <details id="export-details" class="details" hidden><summary>Export report</summary><pre class="patch-log"></pre></details>
+          <button type="button" id="pick-package" class="button button--ghost">Choose package folder</button>
+          <input id="package-input" type="file" webkitdirectory directory hidden />
+          <button type="button" id="build-package" class="button button--ghost" disabled>Rebuild files</button>
+          <p id="build-status" class="result" role="status"></p>
+          <a id="build-save" class="button button--ghost" hidden download="pm99-rebuilt-files.zip">Download rebuilt game update ZIP</a>
+          <details id="build-details" class="details" hidden><summary>Build report</summary><pre class="patch-log"></pre></details>
+          <p class="note">Back up the game folder before copying in rebuilt files. Calendar edits require the TextDB helper.</p>
+        </details>
       </section>
-
     </main>
 
     <footer class="site-footer">
-      <p>Edition supported: English retail Premier Manager 99. Other editions and languages are refused.</p>
+      <p>Back up your game folder before installing an update.</p>
     </footer>
 
     <script type="module" src="src/main.js"></script>
